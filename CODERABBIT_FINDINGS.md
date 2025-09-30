@@ -145,3 +145,52 @@ Alle Critical und Major Issues wurden behoben und getestet:
    - Unit tests für fixes
    - Integration tests für SessionService flow
    - Load tests für concurrent sessions
+
+---
+
+## 🔄 UPDATE: Second Review Findings (Review #3286706874)
+
+### ✅ BEHOBEN: Neue Critical Issues (3)
+
+**15. ✅ request.role.value on string**
+**Status:** BEHOBEN
+**Location:** session_service.py:93
+**Issue:** `request.role.value` aber role ist `str`, kein Enum
+**Fix:** Geändert zu `request.role` (direkt)
+
+**16. ✅ SessionStatus.ACTIVE nicht vorhanden**
+**Status:** BEHOBEN  
+**Location:** session_service.py:107
+**Issue:** `SessionStatus.ACTIVE` existiert nicht in Enum
+**Fix:** Geändert zu `SessionStatus.RUNNING`
+
+**17. ✅ query_session Dict→SessionInfo conversion**
+**Status:** BEHOBEN
+**Location:** session_service.py:159-166
+**Issue:** Gibt Dict zurück statt SessionInfo
+**Fix:** Conversion mit `SessionInfo(**session_data)` hinzugefügt
+
+### ✅ BEHOBEN: Neue Minor Issues (1)
+
+**18. ✅ cleanup() missing lock protection**
+**Status:** BEHOBEN
+**Location:** opencode_api_client.py:373
+**Issue:** `_server_processes.keys()` ohne Lock
+**Fix:** Lock um snapshot hinzugefügt
+
+## 📊 Updated Summary
+
+| Category | Round 1 | Round 2 | Total Fixed |
+|----------|---------|---------|-------------|
+| Critical | 3       | 3       | 6           |
+| Major    | 4       | 0       | 4           |
+| Minor    | 2       | 1       | 3           |
+| **TOTAL** | **9**   | **4**   | **13**      |
+
+## ✅ Latest Commit
+
+```bash
+aaa63b3 fix: CodeRabbit second review - Critical type issues
+```
+
+**Alle Critical und Major Issues aus beiden Reviews sind jetzt behoben!** 🎉
