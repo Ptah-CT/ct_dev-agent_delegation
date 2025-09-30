@@ -14,6 +14,10 @@ Enables the Main Agent (Claude via OpenCode.ai) to delegate work to specialized 
 - **Health Monitoring**: Background health checks for all agent instances
 - **Task Integration**: Works with ct_dev-task_orchestrator for task tracking
 - **Logfire Integration**: Centralized logging and monitoring
+- **SQLite Persistence**: State management for agents, delegations, and audit trail
+- **Constitution Gates**: Validates operations against X^∞ principles before execution
+- **Scope Deviation Handling**: Explicit support for atomic delegation with deviation escalation
+- **Audit Trail**: Complete responsibility tracking for all delegation events
 
 ## Agent Roles
 
@@ -43,6 +47,9 @@ Enables the Main Agent (Claude via OpenCode.ai) to delegate work to specialized 
 ```bash
 cd /home/auctor/dev/ct_dev-agent_orchestrator-mcp
 pip install -e .
+
+# Initialize database
+python3 -m ct_dev_agent_orchestrator_mcp.storage.database migrate
 ```
 
 ## Configuration
@@ -181,8 +188,13 @@ src/ct_dev_agent_orchestrator_mcp/
 │   ├── agent_manager.py        # Agent lifecycle
 │   ├── delegation_service.py   # Work delegation
 │   └── opencode_service.py     # OpenCode integration
-├── handlers/                    # Future: Event handlers
-└── utils/                       # Future: Utilities
+├── storage/
+│   ├── __init__.py
+│   └── database.py             # SQLite persistence
+├── utils/
+│   ├── __init__.py
+│   └── constitution_gate.py    # X^∞ validation
+└── handlers/                    # Future: Event handlers
 ```
 
 ## References
