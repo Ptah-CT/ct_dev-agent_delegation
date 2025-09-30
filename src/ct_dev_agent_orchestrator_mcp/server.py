@@ -1,4 +1,4 @@
-"""MCP Server for ct_dev-agents orchestration."""
+"""MCP Server for ct_dev-agents orchestration - V2 Session-based."""
 
 import asyncio
 import os
@@ -10,8 +10,10 @@ from mcp.types import Tool, TextContent
 
 from .models.agent import AgentRole
 from .models.delegation import DelegationRequest
+from .models.session import SpawnAgentRequest, SessionInfo, AgentOutput, SessionStatus
 from .services.agent_manager import AgentManager
 from .services.delegation_service import DelegationService
+from .services.session_service import SessionService
 from .services.opencode_service import OpenCodeService
 
 
@@ -30,6 +32,7 @@ except Exception:
 opencode_service = OpenCodeService(base_port=8000, max_agents=5)
 agent_manager = AgentManager(opencode_service)
 delegation_service = DelegationService(agent_manager, opencode_service)
+session_service = SessionService()
 
 # Create MCP server
 app = Server("ct_dev-agent_orchestrator")
@@ -39,9 +42,126 @@ app = Server("ct_dev-agent_orchestrator")
 async def list_tools() -> list[Tool]:
     """List available MCP tools."""
     return [
+        # NEW V2 SESSION-BASED TOOLS
+        Tool(
+            name="spawn_agent",
+            description=(
+                "Spawns a specialized agent session for interactive work. "
+                "Returns session_id for tracking and follow-up communication."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [role.value for role in AgentRole],
+                        "description": "Agent role (e.g., 'backend_specialist')"
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": "Task UUID from task_orchestrator"
+                    },
+                    "instructions": {
+                        "type": "string",
+                        "description": "Detailed work instructions"
+                    },
+                    "context": {
+                        "type": "object",
+                        "description": "Additional context",
+                        "default": {}
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Model to use",
+                        "default": "claude-sonnet-4"
+                    }
+                },
+                "required": ["role", "task_id", "instructions"]
+            }
+        ),
+        Tool(
+            name="query_session",
+            description="Gets current status of an agent session",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session UUID"
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="get_agent_output",
+            description="Gets final output from completed agent session",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session UUID"
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="list_active_sessions",
+            description="Lists all active agent sessions",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="stop_agent",
+            description="Stops an agent session and cleans up resources",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session UUID to stop"
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="send_to_agent",
+            description="Sends follow-up message to running agent session",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session UUID"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Follow-up message"
+                    }
+                },
+                "required": ["session_id", "message"]
+            }
+        ),
+        Tool(
+            name="get_agent_capabilities",
+            description="Gets information about available agent roles and capabilities",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        # DEPRECATED V1 DELEGATION TOOLS (with warnings)
         Tool(
             name="delegate_work",
             description=(
+                "DEPRECATED: Use spawn_agent instead. "
                 "Delegate work to a specialized ct_dev-agent. "
                 "Fire-and-forget async delegation (returns immediately). "
                 "Use get_delegation_status to check progress."
@@ -78,7 +198,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_delegation_status",
-            description="Get the status of a delegated work item.",
+            description="DEPRECATED: Use query_session instead. Get the status of a delegated work item.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -92,7 +212,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_delegation_result",
-            description="Get the result of a completed delegation.",
+            description="DEPRECATED: Use get_agent_output instead. Get the result of a completed delegation.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -115,7 +235,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="list_delegations",
-            description="List all delegations (past and present).",
+            description="DEPRECATED: Use list_active_sessions instead. List all delegations (past and present).",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -124,7 +244,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="cancel_delegation",
-            description="Cancel a running delegation.",
+            description="DEPRECATED: Use stop_agent instead. Cancel a running delegation.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -153,21 +273,127 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     
     try:
-        if name == "delegate_work":
-            request = DelegationRequest(**arguments)
-            response = await delegation_service.delegate(request)
-            
-            result = {
-                "success": True,
-                "delegation_id": response.delegation_id,
-                "agent_id": response.agent_id,
-                "status": response.status,
-                "message": response.message
-            }
+        # NEW V2 SESSION-BASED TOOLS
+        if name == "spawn_agent":
+            request = SpawnAgentRequest(**arguments)
+            session_info = await session_service.spawn_agent(request)
             
             return [TextContent(
                 type="text",
-                text=f"✓ Work delegated successfully\n\n"
+                text=f"✓ Agent session spawned successfully\n\n"
+                     f"Session ID: {session_info.session_id}\n"
+                     f"Agent Role: {session_info.agent_role}\n"
+                     f"Status: {session_info.status}\n"
+                     f"Server URL: {session_info.server_url}\n\n"
+                     f"Use query_session to check progress."
+            )]
+        
+        elif name == "query_session":
+            session_id = arguments["session_id"]
+            session_info = await session_service.query_session(session_id)
+            
+            return [TextContent(
+                type="text",
+                text=f"Session Status:\n\n"
+                     f"ID: {session_info.session_id}\n"
+                     f"Agent Role: {session_info.agent_role}\n"
+                     f"Status: {session_info.status}\n"
+                     f"Started: {session_info.started_at}\n"
+                     f"Server URL: {session_info.server_url}\n"
+                     f"Messages: {len(session_info.messages)}"
+            )]
+        
+        elif name == "get_agent_output":
+            session_id = arguments["session_id"]
+            output = await session_service.get_agent_output(session_id)
+            
+            return [TextContent(
+                type="text",
+                text=f"Agent Output:\n\n"
+                     f"Session ID: {output.session_id}\n"
+                     f"Status: {output.status}\n"
+                     f"Duration: {output.duration_seconds:.2f}s\n"
+                     f"Completed: {output.completed_at}\n\n"
+                     f"Summary:\n{output.summary}\n\n"
+                     f"Artifacts: {len(output.artifacts)} items"
+            )]
+        
+        elif name == "list_active_sessions":
+            sessions = await session_service.list_active_sessions()
+            
+            if not sessions:
+                return [TextContent(
+                    type="text",
+                    text="No active sessions found."
+                )]
+            
+            session_list = []
+            for session in sessions:
+                session_list.append(
+                    f"• {session.session_id}\n"
+                    f"  Role: {session.agent_role}\n"
+                    f"  Status: {session.status}\n"
+                    f"  Started: {session.started_at}\n"
+                    f"  Messages: {len(session.messages)}"
+                )
+            
+            return [TextContent(
+                type="text",
+                text=f"Active Sessions ({len(sessions)}):\n\n" + "\n\n".join(session_list)
+            )]
+        
+        elif name == "stop_agent":
+            session_id = arguments["session_id"]
+            success = await session_service.stop_agent(session_id)
+            
+            if success:
+                return [TextContent(
+                    type="text",
+                    text=f"✓ Agent session {session_id} stopped successfully"
+                )]
+            else:
+                return [TextContent(
+                    type="text",
+                    text=f"✗ Failed to stop agent session {session_id}"
+                )]
+        
+        elif name == "send_to_agent":
+            session_id = arguments["session_id"]
+            message = arguments["message"]
+            success = await session_service.send_to_agent(session_id, message)
+            
+            if success:
+                return [TextContent(
+                    type="text",
+                    text=f"✓ Message sent to agent session {session_id}"
+                )]
+            else:
+                return [TextContent(
+                    type="text",
+                    text=f"✗ Failed to send message to session {session_id}"
+                )]
+        
+        elif name == "get_agent_capabilities":
+            capabilities = []
+            for role in AgentRole:
+                capabilities.append(f"• {role.value}")
+            
+            return [TextContent(
+                type="text",
+                text=f"Available Agent Roles:\n\n" + "\n".join(capabilities) + 
+                     f"\n\nTotal: {len(AgentRole)} specialized roles available"
+            )]
+        
+        # DEPRECATED V1 DELEGATION TOOLS (with warnings)
+        elif name == "delegate_work":
+            # Add deprecation warning
+            warning_text = "⚠️  WARNING: delegate_work is DEPRECATED. Use spawn_agent instead.\n\n"
+            request = DelegationRequest(**arguments)
+            response = await delegation_service.delegate(request)
+            
+            return [TextContent(
+                type="text",
+                text=warning_text + f"✓ Work delegated successfully\n\n"
                      f"Delegation ID: {response.delegation_id}\n"
                      f"Agent ID: {response.agent_id}\n"
                      f"Status: {response.status}\n\n"
@@ -175,18 +401,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
             )]
         
         elif name == "get_delegation_status":
+            # Add deprecation warning
+            warning_text = "⚠️  WARNING: get_delegation_status is DEPRECATED. Use query_session instead.\n\n"
             delegation_id = arguments["delegation_id"]
             status = await delegation_service.get_status(delegation_id)
             
             if not status:
                 return [TextContent(
                     type="text",
-                    text=f"✗ Delegation {delegation_id} not found"
+                    text=warning_text + f"✗ Delegation {delegation_id} not found"
                 )]
             
             return [TextContent(
                 type="text",
-                text=f"Delegation Status:\n\n"
+                text=warning_text + f"Delegation Status:\n\n"
                      f"ID: {status['id']}\n"
                      f"Agent: {status['agent_id']}\n"
                      f"Task: {status['task_id']}\n"
@@ -197,18 +425,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
             )]
         
         elif name == "get_delegation_result":
+            # Add deprecation warning
+            warning_text = "⚠️  WARNING: get_delegation_result is DEPRECATED. Use get_agent_output instead.\n\n"
             delegation_id = arguments["delegation_id"]
             result = await delegation_service.get_result(delegation_id)
             
             if not result:
                 return [TextContent(
                     type="text",
-                    text=f"✗ Result not available for {delegation_id}"
+                    text=warning_text + f"✗ Result not available for {delegation_id}"
                 )]
             
             return [TextContent(
                 type="text",
-                text=f"Delegation Result:\n\n"
+                text=warning_text + f"Delegation Result:\n\n"
                      f"Success: {result.success}\n"
                      f"Status: {result.status}\n"
                      f"Duration: {result.duration_seconds:.2f}s\n"
@@ -242,12 +472,14 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
             )]
         
         elif name == "list_delegations":
+            # Add deprecation warning
+            warning_text = "⚠️  WARNING: list_delegations is DEPRECATED. Use list_active_sessions instead.\n\n"
             delegations = await delegation_service.list_delegations()
             
             if not delegations:
                 return [TextContent(
                     type="text",
-                    text="No delegations found."
+                    text=warning_text + "No delegations found."
                 )]
             
             delegation_list = []
@@ -262,22 +494,24 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
             
             return [TextContent(
                 type="text",
-                text=f"Delegations ({len(delegations)}):\n\n" + "\n\n".join(delegation_list)
+                text=warning_text + f"Delegations ({len(delegations)}):\n\n" + "\n\n".join(delegation_list)
             )]
         
         elif name == "cancel_delegation":
+            # Add deprecation warning
+            warning_text = "⚠️  WARNING: cancel_delegation is DEPRECATED. Use stop_agent instead.\n\n"
             delegation_id = arguments["delegation_id"]
             success = await delegation_service.cancel_delegation(delegation_id)
             
             if success:
                 return [TextContent(
                     type="text",
-                    text=f"✓ Delegation {delegation_id} cancelled"
+                    text=warning_text + f"✓ Delegation {delegation_id} cancelled"
                 )]
             else:
                 return [TextContent(
                     type="text",
-                    text=f"✗ Failed to cancel delegation {delegation_id}"
+                    text=warning_text + f"✗ Failed to cancel delegation {delegation_id}"
                 )]
         
         elif name == "get_agent_stats":
@@ -311,7 +545,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
 
 async def main():
     """Run MCP server."""
-    logfire.info("Starting ct_dev-agent_orchestrator MCP server")
+    logfire.info("Starting ct_dev-agent_orchestrator MCP server v2")
     
     # Start agent manager
     await agent_manager.start()
@@ -327,7 +561,7 @@ async def main():
     finally:
         # Stop agent manager
         await agent_manager.stop()
-        logfire.info("ct_dev-agent_orchestrator MCP server stopped")
+        logfire.info("ct_dev-agent_orchestrator MCP server v2 stopped")
 
 
 if __name__ == "__main__":
