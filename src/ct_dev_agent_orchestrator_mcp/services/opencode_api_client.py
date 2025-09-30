@@ -370,7 +370,8 @@ class OpenCodeAPIClient:
     
     async def cleanup(self):
         """Stop all running server processes."""
-        ports = list(self._server_processes.keys())
+        async with self._lock:
+            ports = list(self._server_processes.keys())
         for port in ports:
             await self.stop_agent_server(port)
         

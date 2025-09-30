@@ -90,7 +90,7 @@ class SessionService:
                 server_url = f"http://localhost:{agent.port}"
                 session_info_dict = await self.session_manager.create_session(
                     server_url=server_url,
-                    agent_name=request.role.value,
+                    agent_name=request.role,  # role is str, not enum
                     model=request.model,
                     metadata={
                         "task_id": request.task_id,
@@ -104,7 +104,7 @@ class SessionService:
                 session_info = SessionInfo(
                     session_id=session_info_dict["session_id"],
                     agent_role=request.role,
-                    status=SessionStatus.ACTIVE,
+                    status=SessionStatus.RUNNING,  # Use valid enum value
                     started_at=session_info_dict["created_at"],
                     server_url=server_url,
                     progress={},
@@ -155,8 +155,11 @@ class SessionService:
             try:
                 logfire.debug("Querying session status", extra={"session_id": session_id})
                 
-                # Query session via session_manager
-                session_info = await self.session_manager.get_session(session_id)
+                # Query session via session_manager (returns Dict)
+                session_data = await self.session_manager.get_session(session_id)
+                
+                # Convert dict to SessionInfo
+                session_info = SessionInfo(**session_data)
                 
                 logfire.debug("Session status retrieved", extra={
                     "session_id": session_id,
