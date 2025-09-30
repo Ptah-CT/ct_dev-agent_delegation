@@ -4,7 +4,7 @@
 
 ### Environment Variable
 ```bash
-export LOGFIRE_TOKEN=pylf_v1_us_k1PJ9JTZw9CQxtQtHMBwwSwLdNXG2mcG8yGNxSBt5cRf
+export LOGFIRE_TOKEN=your_logfire_token_here
 ```
 
 ### Using secrets.env
@@ -19,7 +19,7 @@ export $(cat secrets.env | xargs)
 ### Permanent Setup (Optional)
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-echo 'export LOGFIRE_TOKEN=pylf_v1_us_k1PJ9JTZw9CQxtQtHMBwwSwLdNXG2mcG8yGNxSBt5cRf' >> ~/.bashrc
+echo 'export LOGFIRE_TOKEN=your_logfire_token_here' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -30,7 +30,7 @@ source ~/.bashrc
 python3 -c "import logfire; logfire.configure(); logfire.info('Test')"
 
 # Run server with Logfire
-export LOGFIRE_TOKEN=pylf_v1_us_k1PJ9JTZw9CQxtQtHMBwwSwLdNXG2mcG8yGNxSBt5cRf
+export LOGFIRE_TOKEN=your_logfire_token_here
 python3 -m ct_dev_agent_orchestrator_mcp
 ```
 

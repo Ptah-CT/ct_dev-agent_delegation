@@ -21,6 +21,7 @@ from ..models.session import (
     AgentOutput, 
     SessionStatus
 )
+from ..models.agent import AgentStatus
 from .session_manager import OpenCodeSessionManager
 from .opencode_api_client import OpenCodeAPIClient
 from .agent_manager import AgentManager
@@ -75,20 +76,40 @@ class SessionService:
                     "model": request.model
                 })
                 
-                # Generate unique session_id
-                session_id = str(uuid.uuid4())
+                # Step 1: Create agent via agent_manager
+                agent = await self.agent_manager.create_agent(request.role)
                 
-                # Create session via session_manager
-                session_info = await self.session_manager.create_session(
-                    session_id=session_id,
+                if agent.status == AgentStatus.ERROR or not agent.port:
+                    raise RuntimeError(f"Failed to create agent: {agent.status}")
+                
+                # Step 2: Create session via session_manager
+                server_url = f"http://localhost:{agent.port}"
+                session_info_dict = await self.session_manager.create_session(
+                    server_url=server_url,
+                    agent_name=request.role.value,
+                    model=request.model,
+                    metadata={
+                        "task_id": request.task_id,
+                        "instructions": request.instructions,
+                        "context": request.context,
+                        "agent_id": agent.agent_id
+                    }
+                )
+                
+                # Convert to SessionInfo
+                from ..models.session import SessionInfo, SessionStatus
+                session_info = SessionInfo(
+                    session_id=session_info_dict["session_id"],
                     agent_role=request.role,
-                    instructions=request.instructions,
-                    context=request.context,
-                    model=request.model
+                    status=SessionStatus.ACTIVE,
+                    started_at=session_info_dict["created_at"],
+                    server_url=server_url,
+                    progress={},
+                    messages=[]
                 )
                 
                 logfire.info("Agent session spawned successfully", extra={
-                    "session_id": session_id,
+                    "session_id": session_info.session_id,
                     "server_url": session_info.server_url,
                     "status": session_info.status
                 })
@@ -97,8 +118,10 @@ class SessionService:
                 
             except asyncio.TimeoutError as e:
                 logfire.error("Session spawn timeout", extra={"error": str(e)})
+                # Generate a fallback session_id for error response
+                fallback_session_id = str(uuid.uuid4())
                 return SessionInfo(
-                    session_id=session_id,
+                    session_id=fallback_session_id,
                     agent_role=request.role,
                     status=SessionStatus.FAILED,
                     started_at=datetime.utcnow().isoformat(),
@@ -170,7 +193,10 @@ class SessionService:
                 })
                 
                 # Send message via session_manager
-                success = await self.session_manager.send_message(session_id, message)
+                response = await self.session_manager.send_message(session_id, message)
+                
+                # Consider successful if we got a response without exception
+                success = response is not None
                 
                 if success:
                     logfire.info("Message sent successfully", extra={"session_id": session_id})

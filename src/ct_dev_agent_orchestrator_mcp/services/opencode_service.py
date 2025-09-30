@@ -27,6 +27,14 @@ class OpenCodeService:
         self._available_agents_cache: Optional[List[Dict]] = None
         self._available_models_cache: Optional[List[str]] = None
         
+        # Initialize agents directory path
+        # Assuming agents are stored in project root/agents directory
+        self.agents_dir = Path(__file__).parent.parent.parent / "agents"
+        if not self.agents_dir.exists():
+            logfire.warning(f"Agents directory not found: {self.agents_dir}")
+            # Create directory if it doesn't exist
+            self.agents_dir.mkdir(parents=True, exist_ok=True)
+        
     def _get_next_port(self) -> int:
         """Get next available port."""
         port = self.base_port + self._port_offset
@@ -80,8 +88,8 @@ class OpenCodeService:
             
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 start_new_session=True
             )
             

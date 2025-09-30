@@ -35,12 +35,27 @@ class OpenCodeAPIClient:
         self.max_agents = max_agents
         self._port_offset = 0
         self._server_processes: Dict[int, subprocess.Popen] = {}
+        self._lock = asyncio.Lock()
         
-    def _get_next_port(self) -> int:
-        """Get next available port."""
-        port = self.base_port + self._port_offset
-        self._port_offset = (self._port_offset + 1) % self.max_agents
-        return port
+    async def _get_next_port(self) -> int:
+        """Get next available free port within the configured range.
+        
+        Raises:
+            RuntimeError: If no free ports are available
+        """
+        async with self._lock:
+            # Enforce capacity
+            if len(self._server_processes) >= self.max_agents:
+                raise RuntimeError("No free OpenCode server ports available")
+            
+            # Find next unused port
+            for _ in range(self.max_agents):
+                port = self.base_port + self._port_offset
+                self._port_offset = (self._port_offset + 1) % self.max_agents
+                if port not in self._server_processes:
+                    return port
+            
+            raise RuntimeError("No free OpenCode server ports available")
     
     async def fetch_available_agents(self, server_url: str) -> List[Dict[str, Any]]:
         """Fetch available agents from OpenCode server API.
@@ -162,7 +177,7 @@ class OpenCodeAPIClient:
         Returns:
             Server info dict with url, pid, port
         """
-        port = self._get_next_port()
+        port = await self._get_next_port()
         hostname = "127.0.0.1"
         
         # Build command
@@ -185,22 +200,28 @@ class OpenCodeAPIClient:
             cmd.extend(["--custom-instructions", custom_instructions])
         
         try:
-            # Start process
+            # Start process with DEVNULL to avoid deadlock
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 text=True
             )
             
             self._server_processes[port] = process
             
-            # Wait for server to start
-            await asyncio.sleep(2)
-            
-            # Verify server is running
+            # Poll for server readiness with timeout
             server_url = f"http://{hostname}:{port}"
-            if not await self.check_health(server_url):
+            deadline = asyncio.get_event_loop().time() + 15.0
+            ready = False
+            
+            while asyncio.get_event_loop().time() < deadline:
+                if await self.check_health(server_url):
+                    ready = True
+                    break
+                await asyncio.sleep(0.5)
+            
+            if not ready:
                 raise RuntimeError(f"Server failed to start on port {port}")
             
             logfire.info(
