@@ -62,6 +62,10 @@ class OpenCodeService:
     async def start_agent(self, agent: Agent) -> Agent:
         """Start OpenCode server for agent.
         
+        NOTE: OpenCode 0.13.5+ uses session-based architecture.
+        Server starts WITHOUT agent specification. Agent selection
+        happens per-message via POST /session/{id}/message.
+        
         Args:
             agent: Agent instance
             
@@ -69,18 +73,16 @@ class OpenCodeService:
             Updated agent with server details
         """
         try:
-            agent_file = self._get_agent_file(agent.role)
             port = self._get_next_port()
             
-            # Start opencode serve with custom instructions
+            # Start generic OpenCode server (NO --custom-instructions)
             cmd = [
                 "opencode", "serve",
-                "--port", str(port),
-                "--custom-instructions", str(agent_file)
+                "--port", str(port)
             ]
             
             logfire.info(
-                f"Starting agent {agent.agent_id}",
+                f"Starting OpenCode server for agent {agent.agent_id}",
                 role=agent.role.value,
                 port=port,
                 command=" ".join(cmd)
@@ -93,23 +95,24 @@ class OpenCodeService:
                 start_new_session=True
             )
             
-            # Wait for startup (max 10 seconds)
+            # Wait for startup
             await asyncio.sleep(2)
             
             # Check if process is running
             if process.poll() is not None:
-                raise RuntimeError(f"Agent process died immediately: {process.returncode}")
+                raise RuntimeError(f"Server process died immediately: {process.returncode}")
             
             # Update agent details
             agent.pid = process.pid
             agent.port = port
-            agent.health_check_url = f"http://localhost:{port}/health"
+            # Use /config as health check (no /health endpoint)
+            agent.health_check_url = f"http://localhost:{port}/config"
             agent.status = AgentStatus.STARTING
             
             # Wait for health check
             if await self._wait_for_health(agent, timeout=8):
                 agent.status = AgentStatus.IDLE
-                logfire.info(f"Agent {agent.agent_id} started successfully", port=port)
+                logfire.info(f"OpenCode server started for agent {agent.agent_id}", port=port)
             else:
                 agent.status = AgentStatus.ERROR
                 logfire.error(f"Agent {agent.agent_id} health check failed")
