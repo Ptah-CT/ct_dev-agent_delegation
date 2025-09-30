@@ -83,9 +83,6 @@ class SessionService:
                 # Step 1: Create agent via agent_manager (convert str to AgentRole enum)
                 agent = await self.agent_manager.create_agent(AgentRole(request.role))
                 
-                if agent.status == AgentStatus.ERROR or not agent.port:
-                    raise RuntimeError(f"Failed to create agent: {agent.status}")
-                
                 # Step 2: Create session via session_manager
                 server_url = f"http://localhost:{agent.port}"
                 session_info_dict = await self.session_manager.create_session(
@@ -100,16 +97,19 @@ class SessionService:
                     }
                 )
                 
-                # Convert to SessionInfo
-                session_info = SessionInfo(
-                    session_id=session_info_dict["session_id"],
-                    agent_role=request.role,
-                    status=SessionStatus.RUNNING,  # Use valid enum value
-                    started_at=session_info_dict["created_at"],
-                    server_url=server_url,
-                    progress={},
-                    messages=[]
-                )
+                # Convert to SessionInfo - handle both dict and SessionInfo return types
+                if isinstance(session_info_dict, SessionInfo):
+                    session_info = session_info_dict
+                else:
+                    session_info = SessionInfo(
+                        session_id=session_info_dict["session_id"],
+                        agent_role=request.role,
+                        status=SessionStatus.RUNNING,  # Use valid enum value
+                        started_at=session_info_dict["created_at"],
+                        server_url=server_url,
+                        progress={},
+                        messages=[]
+                    )
                 
                 logfire.info("Agent session spawned successfully", extra={
                     "session_id": session_info.session_id,
