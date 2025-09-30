@@ -1,6 +1,7 @@
 """MCP Server for ct_dev-agents orchestration."""
 
 import asyncio
+import os
 from typing import Dict, Any
 import logfire
 from mcp.server import Server
@@ -14,8 +15,16 @@ from .services.delegation_service import DelegationService
 from .services.opencode_service import OpenCodeService
 
 
-# Initialize logfire
-logfire.configure()
+# Initialize logfire (optional for development)
+try:
+    if os.getenv("LOGFIRE_TOKEN") or os.path.exists(os.path.expanduser("~/.logfire")):
+        logfire.configure()
+    else:
+        # Disable logfire if not configured
+        logfire.configure(send_to_logfire=False)
+except Exception:
+    # Fallback: disable logfire
+    logfire.configure(send_to_logfire=False)
 
 # Create services
 opencode_service = OpenCodeService(base_port=8000, max_agents=5)
