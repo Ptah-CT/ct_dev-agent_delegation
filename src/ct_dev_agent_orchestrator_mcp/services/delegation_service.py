@@ -1,6 +1,7 @@
 """Delegation service for managing agent work assignments."""
 
 import asyncio
+import json
 from typing import Dict, Optional
 from datetime import datetime, timezone
 import uuid
@@ -15,6 +16,8 @@ from ..models.delegation import (
 from ..models.agent import AgentRole
 from .agent_manager import AgentManager
 from .opencode_service import OpenCodeService
+from ..storage.database import get_database
+from ..utils.constitution_gate import get_constitution_gate
 
 
 class DelegationService:
@@ -31,6 +34,8 @@ class DelegationService:
         self.opencode_service = opencode_service
         self.delegations: Dict[str, Dict] = {}
         self._tasks: Dict[str, asyncio.Task] = {}
+        self.db = get_database()
+        self.constitution_gate = get_constitution_gate()
         
     async def delegate(self, request: DelegationRequest) -> DelegationResponse:
         """Delegate work to an agent (fire-and-forget).
@@ -44,6 +49,17 @@ class DelegationService:
         delegation_id = str(uuid.uuid4())
         
         try:
+            # Constitution gate check
+            approved, violations = self.constitution_gate.check_delegation(
+                task_id=request.task_id,
+                instructions=request.instructions,
+                delegator="Main Agent"  # TODO: Get from context
+            )
+            
+            if not approved:
+                error_msg = "; ".join([v.description for v in violations])
+                raise ValueError(f"Delegation rejected by constitution gate: {error_msg}")
+            
             # Parse role
             role = AgentRole(request.agent_role)
             
@@ -54,17 +70,50 @@ class DelegationService:
             await self.agent_manager.mark_busy(agent.agent_id, delegation_id)
             
             # Store delegation
+            created_at = datetime.now(timezone.utc).isoformat()
             self.delegations[delegation_id] = {
                 "id": delegation_id,
                 "agent_id": agent.agent_id,
                 "task_id": request.task_id,
                 "status": DelegationStatus.PENDING,
                 "request": request,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": created_at,
                 "started_at": None,
                 "completed_at": None,
                 "result": None
             }
+            
+            # Persist to database
+            self.db.execute("""
+                INSERT INTO delegations 
+                (delegation_id, agent_id, task_id, status, created_at, 
+                 instructions, context, timeout_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                delegation_id,
+                agent.agent_id,
+                request.task_id,
+                DelegationStatus.PENDING.value,
+                created_at,
+                request.instructions,
+                json.dumps(request.context),
+                request.timeout_seconds
+            ))
+            
+            # Log delegation event
+            self.db.execute("""
+                INSERT INTO delegation_events 
+                (delegation_id, timestamp, event_type, delegator, 
+                 delegatee_agent_id, responsibility_chain)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                delegation_id,
+                created_at,
+                "DELEGATED",
+                "Main Agent",
+                agent.agent_id,
+                json.dumps(["Main Agent", agent.role.value])
+            ))
             
             # Start execution in background
             task = asyncio.create_task(
