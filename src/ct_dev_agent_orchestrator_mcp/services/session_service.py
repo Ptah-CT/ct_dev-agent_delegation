@@ -57,7 +57,11 @@ class SessionService:
     
     async def spawn_agent(self, request: SpawnAgentRequest) -> SessionInfo:
         """
-        Spawn new OpenCode Server and create Session.
+        Create agent via AgentManager and establish OpenCode session.
+        
+        This method orchestrates the agent lifecycle:
+        1. Creates agent instance via AgentManager (which starts OpenCode server)
+        2. Creates session via SessionManager with the agent's server
         
         Args:
             request: SpawnAgentRequest with role, task_id, instructions, context, model
@@ -66,7 +70,7 @@ class SessionService:
             SessionInfo: Created session with session_id for tracking
             
         Raises:
-            Exception: If session creation fails
+            Exception: If agent creation or session creation fails
         """
         async with self._semaphore:
             try:
@@ -97,7 +101,6 @@ class SessionService:
                 )
                 
                 # Convert to SessionInfo
-                from ..models.session import SessionInfo, SessionStatus
                 session_info = SessionInfo(
                     session_id=session_info_dict["session_id"],
                     agent_role=request.role,
