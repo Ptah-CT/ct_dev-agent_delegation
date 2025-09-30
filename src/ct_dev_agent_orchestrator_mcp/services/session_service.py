@@ -21,7 +21,7 @@ from ..models.session import (
     AgentOutput, 
     SessionStatus
 )
-from ..models.agent import AgentStatus
+from ..models.agent import AgentStatus, AgentRole
 from .session_manager import OpenCodeSessionManager
 from .opencode_api_client import OpenCodeAPIClient
 from .agent_manager import AgentManager
@@ -80,8 +80,8 @@ class SessionService:
                     "model": request.model
                 })
                 
-                # Step 1: Create agent via agent_manager
-                agent = await self.agent_manager.create_agent(request.role)
+                # Step 1: Create agent via agent_manager (convert str to AgentRole enum)
+                agent = await self.agent_manager.create_agent(AgentRole(request.role))
                 
                 if agent.status == AgentStatus.ERROR or not agent.port:
                     raise RuntimeError(f"Failed to create agent: {agent.status}")
@@ -236,17 +236,19 @@ class SessionService:
                 logfire.info("Getting agent output", extra={"session_id": session_id})
                 
                 # First check session status
-                session_info = await self.session_manager.get_session(session_id)
+                session_data = await self.session_manager.get_session(session_id)
+                session_info = SessionInfo(**session_data)
                 
-                if session_info.status not in [SessionStatus.COMPLETED, SessionStatus.FAILED]:
+                if session_info.status not in (SessionStatus.COMPLETED, SessionStatus.FAILED):
                     raise ValueError(f"Session {session_id} not completed (status: {session_info.status})")
                 
                 # Get messages to extract final output
                 messages = await self.session_manager.get_messages(session_id)
                 
-                # Calculate duration
+                # Calculate duration with timezone-aware datetime
+                from datetime import timezone
                 started_at = datetime.fromisoformat(session_info.started_at.replace('Z', '+00:00'))
-                completed_at = datetime.utcnow()
+                completed_at = datetime.now(timezone.utc)
                 duration = (completed_at - started_at).total_seconds()
                 
                 # Extract artifacts and summary from messages
@@ -358,6 +360,14 @@ class SessionService:
         """Clean up resources and shutdown service."""
         try:
             logfire.info("Cleaning up SessionService")
+            
+            # Stop AgentManager and underlying agents first
+            try:
+                if hasattr(self.agent_manager, 'stop_all_agents'):
+                    await self.agent_manager.stop_all_agents()
+                    logfire.info("All agents stopped successfully")
+            except Exception as e:
+                logfire.error("Failed to stop agents during cleanup", extra={"error": str(e)})
             
             # Cleanup session manager
             await self.session_manager.cleanup()

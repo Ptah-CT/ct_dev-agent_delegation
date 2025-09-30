@@ -106,7 +106,7 @@
 Das Logfire Token wurde im Git-History exposed (Commit 6c84dbd).
 
 **Erforderliche Schritte:**
-1. **Logfire Dashboard öffnen:** https://logfire.pydantic.dev/
+1. **Logfire Dashboard öffnen:** [https://logfire.pydantic.dev](https://logfire.pydantic.dev)
 2. **Token rotieren:** Altes Token widerrufen, neues generieren
 3. **Neues Token speichern:** In `secrets.env` (NICHT in Git!)
 4. **Optional - Git History cleanen:**

@@ -208,7 +208,9 @@ class OpenCodeAPIClient:
                 text=True
             )
             
-            self._server_processes[port] = process
+            # Store process with lock protection
+            async with self._lock:
+                self._server_processes[port] = process
             
             # Poll for server readiness with timeout
             server_url = f"http://{hostname}:{port}"
@@ -249,6 +251,16 @@ class OpenCodeAPIClient:
                 port=port,
                 error=str(e)
             )
+            # Cleanup: kill process and remove from registry
+            try:
+                if 'process' in locals():
+                    process.kill()
+                    process.wait(timeout=3)
+            except Exception:
+                pass
+            finally:
+                async with self._lock:
+                    self._server_processes.pop(port, None)
             raise
     
     async def stop_agent_server(self, port: int) -> None:
