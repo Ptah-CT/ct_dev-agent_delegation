@@ -4,7 +4,7 @@ import asyncio
 import subprocess
 import httpx
 import psutil
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from pathlib import Path
 import logfire
 

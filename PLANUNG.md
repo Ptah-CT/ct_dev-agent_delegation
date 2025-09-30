@@ -718,3 +718,11 @@ Dieser Plan beschreibt die **Wirkung** (nicht-blockierende Agent-Orchestrierung)
 **Freigabe-Readiness**: ✅ BEREIT für Auctor-Review
 
 **Nächster Schritt**: Auctor-Freigabe abwarten → T001 starten
+## Fortschritt: OpenCode API-Analyse
+
+- Task 9520f66a-28d3-4e1d-801f-2f20abcf0d71 abgeschlossen.
+- 8 MCP-Tools spezifiziert (z.B. orchestrate_task_creation).
+- Review: 8/10 (OpenAPI-konform, FastAPI-eignet).
+- Dokument: specs/001-agent-orchestrator/api-analysis.md.
+- Nächste Phase: Freigabe an Auctor für Implementierung.
+- Ptah integriert (Nodes/Edges für Tools und Alignment).
