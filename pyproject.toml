@@ -1,0 +1,29 @@
+[project]
+name = "ct_dev-agent_orchestrator-mcp"
+version = "0.1.0"
+description = "MCP Server for ct_dev-agents orchestration with opencode integration"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "mcp>=1.13.1",
+    "psutil>=7.0.0",
+    "openapi-pydantic>=0.5.1",
+    "pydantic>=2.11.7",
+    "logfire>=4.3.0",
+    "httpx>=0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.2",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

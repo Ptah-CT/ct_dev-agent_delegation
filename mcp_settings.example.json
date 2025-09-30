@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ct_dev-agent_orchestrator": {
+      "command": "python3",
+      "args": ["-m", "ct_dev_agent_orchestrator_mcp.server"],
+      "env": {
+        "LOGFIRE_TOKEN": "${LOGFIRE_TOKEN}"
+      }
+    }
+  }
+}
