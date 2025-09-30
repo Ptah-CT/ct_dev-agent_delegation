@@ -97,37 +97,50 @@ class OpenCodeAPIClient:
             )
             raise
     
-    async def fetch_available_models(self, server_url: str) -> List[str]:
-        """Fetch available models from OpenCode server.
-        
-        Note: Model endpoint may not exist in all OpenCode versions.
-        Falls back to empty list if not available.
+    async def fetch_available_models(self, server_url: str) -> Dict[str, Any]:
+        """Fetch available model providers from OpenCode server.
         
         Args:
             server_url: OpenCode server URL
             
         Returns:
-            List of model identifiers
+            Dict with structure:
+            {
+                "providers": [
+                    {
+                        "id": "mistral",
+                        "name": "Mistral",
+                        "models": {
+                            "devstral-medium-2507": {...},
+                            ...
+                        }
+                    }
+                ]
+            }
         """
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Try /model endpoint
-                response = await client.get(f"{server_url}/model")
-                if response.status_code == 200:
-                    models = response.json()
-                    logfire.info(
-                        "Fetched models from OpenCode API",
-                        url=server_url,
-                        count=len(models)
-                    )
-                    return models
-                else:
-                    # Endpoint doesn't exist, use CLI fallback
-                    return await self._fetch_models_from_cli()
-                    
-        except httpx.HTTPError:
-            # API not available, use CLI fallback
-            return await self._fetch_models_from_cli()
+                response = await client.get(f"{server_url}/config/providers")
+                response.raise_for_status()
+                data = response.json()
+                
+                # API returns {"providers": [...]}
+                providers = data.get("providers", [])
+                
+                logfire.info(
+                    "Fetched providers from OpenCode API",
+                    url=server_url,
+                    count=len(providers)
+                )
+                return data
+                
+        except httpx.HTTPError as e:
+            logfire.error(
+                "Failed to fetch providers from OpenCode API",
+                url=server_url,
+                error=str(e)
+            )
+            raise
     
     async def _fetch_models_from_cli(self) -> List[str]:
         """Fallback: Fetch models using CLI.
@@ -161,18 +174,16 @@ class OpenCodeAPIClient:
     
     async def start_agent_server(
         self,
-        agent: Agent,
-        agent_name: Optional[str] = None,
-        model: Optional[str] = None,
-        custom_instructions: Optional[str] = None
+        agent: Agent
     ) -> Dict[str, Any]:
         """Start OpenCode server instance for an agent.
         
+        NOTE: OpenCode 0.13.5+ no longer accepts --agent, --model, or
+        --custom-instructions flags. Server runs generic, agent/model
+        selection happens per-message via API.
+        
         Args:
             agent: Agent instance
-            agent_name: Agent name to use (from OpenCode API)
-            model: Model identifier (from OpenCode API)
-            custom_instructions: Optional custom instructions
             
         Returns:
             Server info dict with url, pid, port
@@ -180,24 +191,12 @@ class OpenCodeAPIClient:
         port = await self._get_next_port()
         hostname = "127.0.0.1"
         
-        # Build command
+        # Build command - NO agent/model/custom-instructions
         cmd = [
             "opencode", "serve",
             "--port", str(port),
             "--hostname", hostname
         ]
-        
-        # Add agent if specified
-        if agent_name:
-            cmd.extend(["--agent", agent_name])
-        
-        # Add model if specified
-        if model:
-            cmd.extend(["--model", model])
-        
-        # Add custom instructions if specified
-        if custom_instructions:
-            cmd.extend(["--custom-instructions", custom_instructions])
         
         try:
             # Start process with DEVNULL to avoid deadlock
@@ -230,18 +229,14 @@ class OpenCodeAPIClient:
                 "Started OpenCode server",
                 agent_id=agent.agent_id,
                 port=port,
-                pid=process.pid,
-                agent_name=agent_name,
-                model=model
+                pid=process.pid
             )
             
             return {
                 "url": server_url,
                 "hostname": hostname,
                 "port": port,
-                "pid": process.pid,
-                "agent_name": agent_name,
-                "model": model
+                "pid": process.pid
             }
             
         except Exception as e:
@@ -295,6 +290,9 @@ class OpenCodeAPIClient:
     async def check_health(self, server_url: str) -> bool:
         """Check if OpenCode server is healthy.
         
+        NOTE: OpenCode 0.13.5+ has no /health endpoint.
+        Use /config or /agent as health check instead.
+        
         Args:
             server_url: Server URL
             
@@ -303,8 +301,8 @@ class OpenCodeAPIClient:
         """
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                # Try agent endpoint as health check
-                response = await client.get(f"{server_url}/agent")
+                # Use /config endpoint as health check
+                response = await client.get(f"{server_url}/config")
                 return response.status_code == 200
                 
         except Exception:
