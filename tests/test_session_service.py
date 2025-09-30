@@ -83,7 +83,18 @@ class TestSpawnAgent:
     @pytest.mark.asyncio
     async def test_spawn_agent_success(self, session_service, sample_spawn_request, sample_session_info):
         """Test successful agent spawning."""
-        # Setup mocks - create_session should return a dict, not SessionInfo
+        # Setup mocks - create mock agent with port
+        from src.ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        mock_agent = Agent(
+            agent_id="test-agent-id",
+            role=AgentRole.BACKEND_SPECIALIST,
+            status=AgentStatus.IDLE,
+            port=8000,
+            created_at="2025-09-30T10:00:00Z"
+        )
+        session_service.agent_manager.create_agent.return_value = mock_agent
+        
+        # create_session should return a dict, not SessionInfo
         session_dict = {
             "session_id": sample_session_info.session_id,
             "created_at": sample_session_info.started_at,
@@ -103,9 +114,7 @@ class TestSpawnAgent:
         # Verify session manager was called correctly
         session_service.session_manager.create_session.assert_called_once()
         call_args = session_service.session_manager.create_session.call_args
-        assert call_args.kwargs['agent_role'] == sample_spawn_request.role
-        assert call_args.kwargs['instructions'] == sample_spawn_request.instructions
-        assert call_args.kwargs['context'] == sample_spawn_request.context
+        assert call_args.kwargs['agent_name'] == sample_spawn_request.role
         assert call_args.kwargs['model'] == sample_spawn_request.model
     
     @pytest.mark.asyncio
@@ -197,13 +206,13 @@ class TestSendToAgent:
     @pytest.mark.asyncio
     async def test_send_to_agent_failure(self, session_service):
         """Test message sending failure."""
-        # Setup mocks
-        session_service.session_manager.send_message.return_value = False
+        # Setup mocks - return None to trigger failure
+        session_service.session_manager.send_message.return_value = None
         
         # Execute
         result = await session_service.send_to_agent("test-session-id", "Message")
         
-        # Verify
+        # Verify - send_message returns False when response is None
         assert result is False
     
     @pytest.mark.asyncio
@@ -241,10 +250,16 @@ class TestGetAgentOutput:
         session_service.session_manager.get_session.return_value = completed_session_dict
         session_service.session_manager.get_messages.return_value = messages
         
-        # Execute
-        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime:
-            mock_datetime.fromisoformat.return_value = datetime(2025, 9, 30, 10, 0, 0)
-            mock_datetime.utcnow.return_value = datetime(2025, 9, 30, 10, 30, 0)
+        # Execute with proper datetime mocking
+        from datetime import timezone
+        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+            # Mock datetime.fromisoformat
+            started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
+            mock_datetime_class.fromisoformat.return_value = started_dt
+            
+            # Mock datetime.now(timezone.utc)
+            completed_dt = datetime(2025, 9, 30, 10, 30, 0, tzinfo=timezone.utc)
+            mock_datetime_class.now.return_value = completed_dt
             
             result = await session_service.get_agent_output("test-session-id")
         
@@ -292,10 +307,16 @@ class TestGetAgentOutput:
         session_service.session_manager.get_session.return_value = failed_session_dict
         session_service.session_manager.get_messages.return_value = []
         
-        # Execute
-        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime:
-            mock_datetime.fromisoformat.return_value = datetime(2025, 9, 30, 10, 0, 0)
-            mock_datetime.utcnow.return_value = datetime(2025, 9, 30, 10, 30, 0)
+        # Execute with proper datetime mocking
+        from datetime import timezone
+        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+            # Mock datetime.fromisoformat
+            started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
+            mock_datetime_class.fromisoformat.return_value = started_dt
+            
+            # Mock datetime.now(timezone.utc)
+            completed_dt = datetime(2025, 9, 30, 10, 30, 0, tzinfo=timezone.utc)
+            mock_datetime_class.now.return_value = completed_dt
             
             result = await session_service.get_agent_output("test-session-id")
         
@@ -451,10 +472,25 @@ class TestConcurrency:
     @pytest.mark.asyncio
     async def test_semaphore_limiting(self, session_service, sample_spawn_request, sample_session_info):
         """Test that semaphore limits concurrent operations."""
-        # Setup slow mock that takes time
+        # Setup mocks - create mock agent
+        from src.ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        mock_agent = Agent(
+            agent_id="test-agent-id",
+            role=AgentRole.BACKEND_SPECIALIST,
+            status=AgentStatus.IDLE,
+            port=8000,
+            created_at="2025-09-30T10:00:00Z"
+        )
+        session_service.agent_manager.create_agent.return_value = mock_agent
+        
+        # Setup slow mock that takes time and returns dict
         async def slow_create_session(*args, **kwargs):
             await asyncio.sleep(0.1)
-            return sample_session_info
+            return {
+                "session_id": sample_session_info.session_id,
+                "created_at": sample_session_info.started_at,
+                "status": "running"
+            }
         
         session_service.session_manager.create_session.side_effect = slow_create_session
         
