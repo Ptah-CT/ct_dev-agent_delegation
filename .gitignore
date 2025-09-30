@@ -46,3 +46,12 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets
+secrets.env
+*.env
+.env
+.env.local
+
+# Logfire
+.logfire/
