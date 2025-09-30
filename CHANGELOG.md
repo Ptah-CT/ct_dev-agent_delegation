@@ -21,9 +21,19 @@
 - OpenCode integration now uses session-based API patterns
 - STATUS_REPORT.md updated to reflect V2 production-ready status
 
-### Deprecated
-- V1 delegation-based MCP tools (spawn_agent, query_agent, etc.)
-- Direct delegation patterns in favor of session management
+### Removed
+- V1 delegation-based MCP tools (delegate_work, get_delegation_status, etc.)
+- Deprecated tool handlers and warning blocks
+- TestDeprecatedTools class from test suite
+- DelegationService imports from server.py
+- 268 lines of legacy V1 code
+
+### Documentation
+- Complete README.md rewrite for V2 session-based architecture
+- Added V2 migration guide with tool mapping table
+- Performance metrics section with test results
+- Updated architecture diagram for session-based flow
+- Comprehensive usage examples for all 9 MCP tools
 
 ## [v0.1.0] - Previous Version
 
