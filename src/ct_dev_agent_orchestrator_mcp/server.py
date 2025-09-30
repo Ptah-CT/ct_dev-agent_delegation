@@ -195,7 +195,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 text=f"✓ Agent session spawned successfully\n\n"
                      f"Session ID: {session_info.session_id}\n"
                      f"Agent Role: {session_info.agent_role}\n"
-                     f"Status: {session_info.status}\n"
+                     f"Status: {session_info.status.value if hasattr(session_info.status, 'value') else session_info.status}\n"
                      f"Server URL: {session_info.server_url}\n\n"
                      f"Use query_session to check progress."
             )]
@@ -209,7 +209,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 text=f"Session Status:\n\n"
                      f"ID: {session_info.session_id}\n"
                      f"Agent Role: {session_info.agent_role}\n"
-                     f"Status: {session_info.status}\n"
+                     f"Status: {session_info.status.value if hasattr(session_info.status, 'value') else session_info.status}\n"
                      f"Started: {session_info.started_at}\n"
                      f"Server URL: {session_info.server_url}\n"
                      f"Messages: {len(session_info.messages)}"
@@ -223,7 +223,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 type="text",
                 text=f"Agent Output:\n\n"
                      f"Session ID: {output.session_id}\n"
-                     f"Status: {output.status}\n"
+                     f"Status: {output.status.value if hasattr(output.status, 'value') else output.status}\n"
                      f"Duration: {output.duration_seconds:.2f}s\n"
                      f"Completed: {output.completed_at}\n\n"
                      f"Summary:\n{output.summary}\n\n"
@@ -244,7 +244,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 session_list.append(
                     f"• {session.session_id}\n"
                     f"  Role: {session.agent_role}\n"
-                    f"  Status: {session.status}\n"
+                    f"  Status: {session.status.value if hasattr(session.status, 'value') else session.status}\n"
                     f"  Started: {session.started_at}\n"
                     f"  Messages: {len(session.messages)}"
                 )

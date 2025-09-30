@@ -45,15 +45,13 @@ class OpenCodeService:
         """Get agent configuration file path.
         
         Args:
-            role: Agent role (can be AgentRole enum or string value)
+            role: Agent role enum
             
         Returns:
             Path to agent markdown file
         """
         # Convert enum to filename (e.g., backend_specialist -> backend-specialist.md)
-        # Handle both enum and string values due to use_enum_values = True in Agent model
-        role_str = role.value if isinstance(role, AgentRole) else role
-        filename = role_str.replace("_", "-") + ".md"
+        filename = role.value.replace("_", "-") + ".md"
         agent_file = self.agents_dir / filename
         
         if not agent_file.exists():

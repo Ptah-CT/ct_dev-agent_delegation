@@ -97,19 +97,16 @@ class SessionService:
                     }
                 )
                 
-                # Convert to SessionInfo - handle both dict and SessionInfo return types
-                if isinstance(session_info_dict, SessionInfo):
-                    session_info = session_info_dict
-                else:
-                    session_info = SessionInfo(
-                        session_id=session_info_dict["session_id"],
-                        agent_role=request.role,
-                        status=SessionStatus.RUNNING,  # Use valid enum value
-                        started_at=session_info_dict["created_at"],
-                        server_url=server_url,
-                        progress={},
-                        messages=[]
-                    )
+                # Convert dict to SessionInfo
+                session_info = SessionInfo(
+                    session_id=session_info_dict["session_id"],
+                    agent_role=request.role,
+                    status=SessionStatus.RUNNING,
+                    started_at=session_info_dict["created_at"],
+                    server_url=server_url,
+                    progress={},
+                    messages=[]
+                )
                 
                 logfire.info("Agent session spawned successfully", extra={
                     "session_id": session_info.session_id,

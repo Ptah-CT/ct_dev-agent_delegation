@@ -24,7 +24,6 @@ class SpawnAgentRequest(BaseModel):
     model: str = Field(default="claude-sonnet-4", description="Model to use")
     
     class Config:
-        use_enum_values = True
         json_schema_extra = {
             "example": {
                 "role": "backend_specialist",
@@ -46,9 +45,6 @@ class SessionInfo(BaseModel):
     progress: Dict[str, Any] = Field(default_factory=dict, description="Progress information")
     messages: List[Dict] = Field(default_factory=list, description="Session messages")
     server_url: str = Field(..., description="Agent server URL")
-    
-    class Config:
-        use_enum_values = True
 
 
 class AgentOutput(BaseModel):
@@ -60,6 +56,3 @@ class AgentOutput(BaseModel):
     summary: str = Field(..., description="Session summary")
     duration_seconds: float = Field(..., description="Session duration in seconds")
     completed_at: str = Field(..., description="ISO 8601 completion timestamp")
-    
-    class Config:
-        use_enum_values = True

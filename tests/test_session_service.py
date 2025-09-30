@@ -83,8 +83,13 @@ class TestSpawnAgent:
     @pytest.mark.asyncio
     async def test_spawn_agent_success(self, session_service, sample_spawn_request, sample_session_info):
         """Test successful agent spawning."""
-        # Setup mocks
-        session_service.session_manager.create_session.return_value = sample_session_info
+        # Setup mocks - create_session should return a dict, not SessionInfo
+        session_dict = {
+            "session_id": sample_session_info.session_id,
+            "created_at": sample_session_info.started_at,
+            "status": "running"
+        }
+        session_service.session_manager.create_session.return_value = session_dict
         
         # Execute
         result = await session_service.spawn_agent(sample_spawn_request)
@@ -135,8 +140,17 @@ class TestQuerySession:
     @pytest.mark.asyncio
     async def test_query_session_success(self, session_service, sample_session_info):
         """Test successful session query."""
-        # Setup mocks
-        session_service.session_manager.get_session.return_value = sample_session_info
+        # Setup mocks - get_session should return a dict, not SessionInfo
+        session_dict = {
+            "session_id": sample_session_info.session_id,
+            "agent_role": sample_session_info.agent_role,
+            "status": sample_session_info.status,
+            "started_at": sample_session_info.started_at,
+            "progress": sample_session_info.progress,
+            "messages": sample_session_info.messages,
+            "server_url": sample_session_info.server_url
+        }
+        session_service.session_manager.get_session.return_value = session_dict
         
         # Execute
         result = await session_service.query_session("test-session-id")
@@ -209,22 +223,22 @@ class TestGetAgentOutput:
     @pytest.mark.asyncio
     async def test_get_agent_output_success(self, session_service):
         """Test successful agent output retrieval."""
-        # Setup mocks
-        completed_session = SessionInfo(
-            session_id="test-session-id",
-            agent_role="backend_specialist",
-            status=SessionStatus.COMPLETED,
-            started_at="2025-09-30T10:00:00Z",
-            server_url="http://localhost:8000",
-            progress={"artifacts": {"code": "implementation.py"}},
-            messages=[]
-        )
+        # Setup mocks - get_session should return dict
+        completed_session_dict = {
+            "session_id": "test-session-id",
+            "agent_role": "backend_specialist",
+            "status": SessionStatus.COMPLETED,
+            "started_at": "2025-09-30T10:00:00Z",
+            "server_url": "http://localhost:8000",
+            "progress": {"artifacts": {"code": "implementation.py"}},
+            "messages": []
+        }
         
         messages = [
             {"role": "assistant", "content": "Task completed successfully"}
         ]
         
-        session_service.session_manager.get_session.return_value = completed_session
+        session_service.session_manager.get_session.return_value = completed_session_dict
         session_service.session_manager.get_messages.return_value = messages
         
         # Execute
@@ -245,8 +259,17 @@ class TestGetAgentOutput:
     @pytest.mark.asyncio
     async def test_get_agent_output_not_completed(self, session_service, sample_session_info):
         """Test agent output retrieval for non-completed session."""
-        # Setup mocks
-        session_service.session_manager.get_session.return_value = sample_session_info
+        # Setup mocks - convert SessionInfo to dict
+        session_dict = {
+            "session_id": sample_session_info.session_id,
+            "agent_role": sample_session_info.agent_role,
+            "status": sample_session_info.status,
+            "started_at": sample_session_info.started_at,
+            "progress": sample_session_info.progress,
+            "messages": sample_session_info.messages,
+            "server_url": sample_session_info.server_url
+        }
+        session_service.session_manager.get_session.return_value = session_dict
         
         # Execute & Verify
         with pytest.raises(ValueError, match="Session test-session-id not completed"):
@@ -255,18 +278,18 @@ class TestGetAgentOutput:
     @pytest.mark.asyncio
     async def test_get_agent_output_failed_session(self, session_service):
         """Test agent output retrieval for failed session."""
-        # Setup mocks
-        failed_session = SessionInfo(
-            session_id="test-session-id",
-            agent_role="backend_specialist",
-            status=SessionStatus.FAILED,
-            started_at="2025-09-30T10:00:00Z",
-            server_url="http://localhost:8000",
-            progress={},
-            messages=[]
-        )
+        # Setup mocks - use dict
+        failed_session_dict = {
+            "session_id": "test-session-id",
+            "agent_role": "backend_specialist",
+            "status": SessionStatus.FAILED,
+            "started_at": "2025-09-30T10:00:00Z",
+            "server_url": "http://localhost:8000",
+            "progress": {},
+            "messages": []
+        }
         
-        session_service.session_manager.get_session.return_value = failed_session
+        session_service.session_manager.get_session.return_value = failed_session_dict
         session_service.session_manager.get_messages.return_value = []
         
         # Execute

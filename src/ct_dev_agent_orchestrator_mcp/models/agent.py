@@ -48,6 +48,3 @@ class Agent(BaseModel):
     created_at: str = Field(..., description="ISO 8601 creation timestamp")
     last_health_check: Optional[str] = Field(None, description="ISO 8601 last health check")
     current_delegation_id: Optional[str] = Field(None, description="Current delegation UUID if busy")
-    
-    class Config:
-        use_enum_values = True
