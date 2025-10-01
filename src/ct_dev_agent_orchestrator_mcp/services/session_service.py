@@ -127,21 +127,30 @@ class SessionService:
                 # Add to session registry for tracking
                 self._sessions[session_info.session_id] = server_url
                 
-                # Step 3: Send initial instructions to agent
+                # Step 3: Send initial instructions to agent with timeout
                 try:
                     # Parse model string to provider_id and model_id
                     # Format: "claude-sonnet-4" -> provider: anthropic, model: claude-sonnet-4
                     # For now, use default agent and model from request
-                    await self.session_manager.send_message(
-                        session_id=session_info.session_id,
-                        message=request.instructions,
-                        agent_name=None,  # Use default agent
-                        provider_id=None,  # Let OpenCode determine
-                        model_id=request.model if request.model else None
+                    # Use asyncio.wait_for with 30s timeout to prevent indefinite hangs
+                    await asyncio.wait_for(
+                        self.session_manager.send_message(
+                            session_id=session_info.session_id,
+                            message=request.instructions,
+                            agent_name=None,  # Use default agent
+                            provider_id=None,  # Let OpenCode determine
+                            model_id=request.model if request.model else None
+                        ),
+                        timeout=30.0  # 30 second timeout for send_message
                     )
                     logfire.info("Initial instructions sent to agent", extra={
                         "session_id": session_info.session_id
                     })
+                except asyncio.TimeoutError:
+                    logfire.warning("Initial instructions send timeout - continuing", extra={
+                        "session_id": session_info.session_id
+                    })
+                    # Continue anyway - session is created, message may be queued
                 except Exception as e:
                     logfire.error("Failed to send initial instructions", extra={
                         "session_id": session_info.session_id,
@@ -224,11 +233,12 @@ class SessionService:
                     messages = []
                 
                 # Map OpenCode fields to SessionInfo fields
+                # NOTE: OpenCode API returns "created" (not "created_at") and flat "role" (not nested metadata)
                 session_info = SessionInfo(
                     session_id=session_data.get("id", session_id),
-                    agent_role=session_data.get("metadata", {}).get("agent_role", "unknown"),
+                    agent_role=session_data.get("role", session_data.get("metadata", {}).get("agent_role", "unknown")),
                     status=SessionStatus.RUNNING,  # Map from OpenCode status if available
-                    started_at=session_data.get("created", ""),
+                    started_at=session_data.get("created", session_data.get("created_at", "")),
                     server_url=server_url,
                     progress=session_data.get("metadata", {}).get("progress", {}),
                     messages=messages
@@ -452,21 +462,25 @@ class SessionService:
                         logfire.warning(f"Failed to list sessions from {server_url}", extra={"error": str(e)})
                         continue
                 
-                # Filter for active sessions only (those in our registry)
-                active_sessions = [
-                    session for session in all_sessions 
-                    if session.get("id") in self._sessions
-                ]
-                
+                # Filter for active sessions only (those in our registry) and deduplicate
+                seen_ids = set()
+                active_sessions = []
+                for session in all_sessions:
+                    session_id = session.get("id")
+                    if session_id in self._sessions and session_id not in seen_ids:
+                        active_sessions.append(session)
+                        seen_ids.add(session_id)
+
                 # Convert to SessionInfo objects
                 session_infos = []
                 for session_dict in active_sessions:
                     try:
+                        # NOTE: OpenCode API returns "created" (not "created_at") and flat "role" (not nested metadata)
                         session_info = SessionInfo(
                             session_id=session_dict.get("id", ""),
-                            agent_role=session_dict.get("metadata", {}).get("agent_role", "unknown"),
+                            agent_role=session_dict.get("role", session_dict.get("metadata", {}).get("agent_role", "unknown")),
                             status=SessionStatus.RUNNING,
-                            started_at=session_dict.get("created", ""),
+                            started_at=session_dict.get("created", session_dict.get("created_at", "")),
                             server_url=self._sessions[session_dict["id"]],
                             progress=session_dict.get("progress", {}),
                             messages=[]

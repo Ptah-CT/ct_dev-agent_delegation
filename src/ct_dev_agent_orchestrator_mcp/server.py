@@ -359,15 +359,22 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
             )]
         
         elif name == "get_agent_stats":
-            total = await agent_manager.get_agent_count()
-            by_status = await agent_manager.get_agent_count_by_status()
-            
+            # Use session_service for V2 consistency - count active sessions not agents
+            sessions = await session_service.list_active_sessions()
+            total = len(sessions)
+
+            # Group by status
+            by_status = {}
+            for session in sessions:
+                status_str = session.status.value if hasattr(session.status, 'value') else str(session.status)
+                by_status[status_str] = by_status.get(status_str, 0) + 1
+
             stats = [f"Total Agents: {total}\n"]
             stats.append("By Status:")
             for status, count in by_status.items():
                 if count > 0:
                     stats.append(f"  • {status}: {count}")
-            
+
             return [TextContent(
                 type="text",
                 text="\n".join(stats)
