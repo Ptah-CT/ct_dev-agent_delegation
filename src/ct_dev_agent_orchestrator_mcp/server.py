@@ -71,6 +71,14 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Detailed work instructions"
                     },
+                    "project_directory": {
+                        "type": "string",
+                        "description": "Absolute path to project working directory"
+                    },
+                    "expected_output": {
+                        "type": "string",
+                        "description": "Expected work output/deliverable (e.g., 'Report', 'Implementation', 'Analysis')"
+                    },
                     "context": {
                         "type": "object",
                         "description": "Additional context",
@@ -82,7 +90,7 @@ async def list_tools() -> list[Tool]:
                         "default": "claude-sonnet-4"
                     }
                 },
-                "required": ["role", "task_id", "instructions"]
+                "required": ["role", "task_id", "instructions", "project_directory", "expected_output"]
             }
         ),
         Tool(
@@ -212,7 +220,23 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
         elif name == "query_session":
             session_id = arguments["session_id"]
             session_info = await session_service.query_session(session_id)
-            
+
+            # Build message output
+            messages_text = ""
+            if session_info.messages:
+                messages_text = "\n\nMessages:\n"
+                for idx, msg in enumerate(session_info.messages, 1):
+                    role = msg.get('role', 'unknown')
+                    parts = msg.get('parts', [])
+                    messages_text += f"\n{idx}. [{role}]:\n"
+                    for part in parts:
+                        if part.get('type') == 'text':
+                            text = part.get('text', '')
+                            # Truncate very long messages
+                            if len(text) > 500:
+                                text = text[:500] + "... (truncated)"
+                            messages_text += f"   {text}\n"
+
             return [TextContent(
                 type="text",
                 text=f"Session Status:\n\n"
@@ -221,7 +245,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                      f"Status: {session_info.status.value if hasattr(session_info.status, 'value') else session_info.status}\n"
                      f"Started: {session_info.started_at}\n"
                      f"Server URL: {session_info.server_url}\n"
-                     f"Messages: {len(session_info.messages)}"
+                     f"Message Count: {len(session_info.messages)}"
+                     f"{messages_text}"
             )]
         
         elif name == "get_agent_output":

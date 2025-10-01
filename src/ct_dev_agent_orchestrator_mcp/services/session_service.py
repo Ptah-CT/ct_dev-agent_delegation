@@ -104,9 +104,11 @@ class SessionService:
                 session_info_dict = await self.session_manager.create_session(
                     server_url=server_url,
                     title=f"Agent {request.role} - Task {request.task_id}",
+                    directory=request.project_directory,
                     metadata={
                         "task_id": request.task_id,
                         "instructions": request.instructions,
+                        "expected_output": request.expected_output,
                         "context": request.context,
                         "agent_id": agent.agent_id,
                         "agent_role": request.role
@@ -126,38 +128,16 @@ class SessionService:
                 
                 # Add to session registry for tracking
                 self._sessions[session_info.session_id] = server_url
-                
-                # Step 3: Send initial instructions to agent with timeout
-                try:
-                    # Parse model string to provider_id and model_id
-                    # Format: "claude-sonnet-4" -> provider: anthropic, model: claude-sonnet-4
-                    # For now, use default agent and model from request
-                    # Use asyncio.wait_for with 30s timeout to prevent indefinite hangs
-                    await asyncio.wait_for(
-                        self.session_manager.send_message(
-                            session_id=session_info.session_id,
-                            message=request.instructions,
-                            agent_name=None,  # Use default agent
-                            provider_id=None,  # Let OpenCode determine
-                            model_id=request.model if request.model else None
-                        ),
-                        timeout=30.0  # 30 second timeout for send_message
-                    )
-                    logfire.info("Initial instructions sent to agent", extra={
-                        "session_id": session_info.session_id
-                    })
-                except asyncio.TimeoutError:
-                    logfire.warning("Initial instructions send timeout - continuing", extra={
-                        "session_id": session_info.session_id
-                    })
-                    # Continue anyway - session is created, message may be queued
-                except Exception as e:
-                    logfire.error("Failed to send initial instructions", extra={
-                        "session_id": session_info.session_id,
-                        "error": str(e)
-                    })
-                    # Continue anyway - session is created
-                
+
+                # Step 3: Queue initial instructions in background (fire-and-forget)
+                # Don't wait for AI response - return immediately so spawn_agent is fast
+                import asyncio
+                asyncio.create_task(self._send_initial_instructions(
+                    session_id=session_info.session_id,
+                    instructions=request.instructions,
+                    model=request.model
+                ))
+
                 logfire.info("Agent session spawned successfully", extra={
                     "session_id": session_info.session_id,
                     "server_url": session_info.server_url,
@@ -182,7 +162,34 @@ class SessionService:
             except Exception as e:
                 logfire.error("Session spawn failed", extra={"error": str(e)})
                 raise
-    
+
+    async def _send_initial_instructions(
+        self,
+        session_id: str,
+        instructions: str,
+        model: Optional[str] = None
+    ) -> None:
+        """
+        Send initial instructions to agent in background (fire-and-forget).
+        This runs as a background task and doesn't block spawn_agent.
+        """
+        try:
+            await self.session_manager.send_message(
+                session_id=session_id,
+                message=instructions,
+                agent_name=None,
+                provider_id=None,
+                model_id=model
+            )
+            logfire.info("Initial instructions sent", extra={
+                "session_id": session_id
+            })
+        except Exception as e:
+            logfire.error("Failed to send initial instructions", extra={
+                "session_id": session_id,
+                "error": str(e)
+            })
+
     async def query_session(self, session_id: str) -> SessionInfo:
         """
         Get current status of a session.

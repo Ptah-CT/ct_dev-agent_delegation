@@ -20,6 +20,8 @@ class SpawnAgentRequest(BaseModel):
     role: str = Field(..., description="Agent role (e.g., 'backend_specialist')")
     task_id: str = Field(..., description="Task UUID from task_orchestrator")
     instructions: str = Field(..., description="Detailed work instructions")
+    project_directory: str = Field(..., description="Absolute path to project working directory")
+    expected_output: str = Field(..., description="Expected work output/deliverable (e.g., 'Report', 'Implementation', 'Analysis')")
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
     model: str = Field(default="claude-sonnet-4", description="Model to use")
     
@@ -29,6 +31,8 @@ class SpawnAgentRequest(BaseModel):
                 "role": "backend_specialist",
                 "task_id": "550e8400-e29b-41d4-a716-446655440000",
                 "instructions": "Implement OAuth2 authentication endpoints with JWT tokens",
+                "project_directory": "/home/auctor/dev/my-project",
+                "expected_output": "Report",
                 "context": {"framework": "FastAPI", "db": "PostgreSQL"},
                 "model": "claude-sonnet-4"
             }

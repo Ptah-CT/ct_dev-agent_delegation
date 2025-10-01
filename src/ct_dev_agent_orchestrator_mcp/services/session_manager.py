@@ -254,7 +254,7 @@ class OpenCodeSessionManager:
                     })
             
             import httpx
-            async with httpx.AsyncClient(timeout=300.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     f"{server_url}/session/{session_id}/message",
                     json=payload
