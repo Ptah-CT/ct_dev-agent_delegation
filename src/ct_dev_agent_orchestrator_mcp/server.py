@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import sys
 from typing import Dict, Any
 import logfire
 from mcp.server import Server
@@ -17,17 +18,25 @@ from .services.opencode_service import OpenCodeService
 
 # Initialize logfire (optional for development)
 try:
-    if os.getenv("LOGFIRE_TOKEN") or os.path.exists(os.path.expanduser("~/.logfire")):
+    # Check for logfire token
+    token = os.getenv("LOGFIRE_TOKEN")
+    if token:
+        logfire.configure(token=token)
+        print(f"Logfire configured with token", file=sys.stderr)
+    elif os.path.exists(os.path.expanduser("~/.logfire")):
         logfire.configure()
+        print(f"Logfire configured from ~/.logfire", file=sys.stderr)
     else:
         # Disable logfire if not configured
         logfire.configure(send_to_logfire=False)
-except Exception:
+        print(f"Logfire disabled - no token found", file=sys.stderr)
+except Exception as e:
     # Fallback: disable logfire
     logfire.configure(send_to_logfire=False)
+    print(f"Logfire configuration failed: {e}", file=sys.stderr)
 
 # Create services
-opencode_service = OpenCodeService(base_port=8000, max_agents=5)
+opencode_service = OpenCodeService(max_agents=5)
 agent_manager = AgentManager(opencode_service)
 session_service = SessionService()
 

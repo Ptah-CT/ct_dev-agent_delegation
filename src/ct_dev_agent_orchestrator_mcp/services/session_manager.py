@@ -373,18 +373,21 @@ class OpenCodeSessionManager:
             )
             raise
     
-    async def abort_session(self, session_id: str) -> Dict[str, Any]:
+    async def abort_session(self, session_id: str, server_url: Optional[str] = None) -> bool:
         """Abort a running session.
         
         Args:
             session_id: Session ID
+            server_url: Optional server URL. If not provided, looks up in _server_mapping
             
         Returns:
-            Response dict
+            bool: True if abort succeeded, False otherwise
         """
-        server_url = self._server_mapping.get(session_id)
+        # If server_url not provided, look up in _server_mapping (backward compatibility)
         if not server_url:
-            raise ValueError(f"Unknown session: {session_id}")
+            server_url = self._server_mapping.get(session_id)
+            if not server_url:
+                raise ValueError(f"Unknown session: {session_id}")
         
         try:
             import httpx
@@ -395,11 +398,14 @@ class OpenCodeSessionManager:
                 response.raise_for_status()
                 result = response.json()
             
-            if session_id in self._sessions:
+            # Parse boolean result from API
+            success = result if isinstance(result, bool) else bool(result)
+            
+            if success and session_id in self._sessions:
                 self._sessions[session_id]["status"] = "aborted"
             
-            logfire.info("Aborted session", session_id=session_id)
-            return result
+            logfire.info("Aborted session", session_id=session_id, success=success)
+            return success
             
         except Exception as e:
             logfire.error(

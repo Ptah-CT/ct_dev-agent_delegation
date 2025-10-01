@@ -14,16 +14,16 @@ from ..models.agent import Agent, AgentRole, AgentStatus
 class OpenCodeService:
     """Manages OpenCode server instances for agents."""
     
-    def __init__(self, base_port: int = 8000, max_agents: int = 5):
+    def __init__(self, max_agents: int = 5):
         """Initialize OpenCode service.
         
+        NOTE: Port allocation is now handled by OpenCode itself.
+        Each agent server chooses its own available port dynamically.
+        
         Args:
-            base_port: Starting port for agent servers
             max_agents: Maximum concurrent agents
         """
-        self.base_port = base_port
         self.max_agents = max_agents
-        self._port_offset = 0
         self._available_agents_cache: Optional[List[Dict]] = None
         self._available_models_cache: Optional[List[str]] = None
         
@@ -35,11 +35,6 @@ class OpenCodeService:
             # Create directory if it doesn't exist
             self.agents_dir.mkdir(parents=True, exist_ok=True)
         
-    def _get_next_port(self) -> int:
-        """Get next available port."""
-        port = self.base_port + self._port_offset
-        self._port_offset = (self._port_offset + 1) % self.max_agents
-        return port
     
     def _get_agent_file(self, role: AgentRole) -> Path:
         """Get agent configuration file path.
@@ -66,6 +61,9 @@ class OpenCodeService:
         Server starts WITHOUT agent specification. Agent selection
         happens per-message via POST /session/{id}/message.
         
+        OpenCode automatically selects an available port. We parse
+        the port from its startup output.
+        
         Args:
             agent: Agent instance
             
@@ -73,34 +71,64 @@ class OpenCodeService:
             Updated agent with server details
         """
         try:
-            port = self._get_next_port()
-            
-            # Start generic OpenCode server (NO --custom-instructions)
-            cmd = [
-                "opencode", "serve",
-                "--port", str(port)
-            ]
+            # Start generic OpenCode server (NO --port, NO --custom-instructions)
+            # OpenCode will choose its own available port
+            cmd = ["opencode", "serve"]
             
             logfire.info(
                 f"Starting OpenCode server for agent {agent.agent_id}",
                 role=agent.role.value,
-                port=port,
                 command=" ".join(cmd)
             )
             
+            # Capture stdout to read the port OpenCode chooses
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                text=True,
+                bufsize=1  # Line buffered
             )
             
-            # Wait for startup
-            await asyncio.sleep(2)
+            # Read port from output
+            # OpenCode outputs: "opencode server listening on http://127.0.0.1:XXXX"
+            port = None
+            max_wait = 5  # seconds
+            start_time = asyncio.get_event_loop().time()
             
-            # Check if process is running
-            if process.poll() is not None:
-                raise RuntimeError(f"Server process died immediately: {process.returncode}")
+            while port is None and (asyncio.get_event_loop().time() - start_time) < max_wait:
+                # Check if process died
+                if process.poll() is not None:
+                    stderr_output = process.stderr.read() if process.stderr else ""
+                    raise RuntimeError(
+                        f"Server process died immediately: {process.returncode}\n"
+                        f"stderr: {stderr_output}"
+                    )
+                
+                # Try to read a line from stdout
+                try:
+                    line = process.stdout.readline()
+                    if not line:
+                        await asyncio.sleep(0.1)
+                        continue
+                    
+                    logfire.debug(f"OpenCode output: {line.strip()}")
+                    
+                    # Parse port from line like "opencode server listening on http://127.0.0.1:8000"
+                    if "listening on" in line and "http://" in line:
+                        import re
+                        match = re.search(r'http://[^:]+:(\d+)', line)
+                        if match:
+                            port = int(match.group(1))
+                            logfire.info(f"OpenCode chose port {port} for agent {agent.agent_id}")
+                            break
+                except Exception as e:
+                    logfire.debug(f"Error reading OpenCode output: {e}")
+                    await asyncio.sleep(0.1)
+            
+            if port is None:
+                raise RuntimeError("Could not determine OpenCode port from output")
             
             # Update agent details
             agent.pid = process.pid

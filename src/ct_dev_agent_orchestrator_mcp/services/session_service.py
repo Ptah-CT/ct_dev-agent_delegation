@@ -11,9 +11,20 @@ Dependencies: OpenCodeSessionManager, OpenCodeAPIClient, AgentManager
 
 import asyncio
 import uuid
+import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import logfire
+
+# Configure logfire with token from environment or disable
+try:
+    token = os.getenv("LOGFIRE_TOKEN")
+    if token:
+        logfire.configure(token=token)
+    else:
+        logfire.configure(send_to_logfire=False)
+except Exception:
+    logfire.configure(send_to_logfire=False)
 
 from ..models.session import (
     SpawnAgentRequest, 
@@ -47,12 +58,17 @@ class SessionService:
         self.session_manager = OpenCodeSessionManager(self.api_client)
         
         # Initialize OpenCodeService if not provided
+        # Port allocation is now handled dynamically by OpenCode
         if opencode_service is None:
             from .opencode_service import OpenCodeService
-            opencode_service = OpenCodeService(base_port=8000, max_agents=5)
+            opencode_service = OpenCodeService(max_agents=5)
         
         self.agent_manager = AgentManager(opencode_service)
         self._semaphore = asyncio.Semaphore(5)  # Max 5 concurrent operations
+        
+        # Session registry: session_id -> server_url mapping
+        self._sessions: Dict[str, str] = {}
+        
         logfire.info("SessionService initialized", extra={"service": "session_service"})
     
     async def spawn_agent(self, request: SpawnAgentRequest) -> SessionInfo:
@@ -87,13 +103,13 @@ class SessionService:
                 server_url = f"http://localhost:{agent.port}"
                 session_info_dict = await self.session_manager.create_session(
                     server_url=server_url,
-                    agent_name=request.role,  # role is str, not enum
-                    model=request.model,
+                    title=f"Agent {request.role} - Task {request.task_id}",
                     metadata={
                         "task_id": request.task_id,
                         "instructions": request.instructions,
                         "context": request.context,
-                        "agent_id": agent.agent_id
+                        "agent_id": agent.agent_id,
+                        "agent_role": request.role
                     }
                 )
                 
@@ -107,6 +123,31 @@ class SessionService:
                     progress={},
                     messages=[]
                 )
+                
+                # Add to session registry for tracking
+                self._sessions[session_info.session_id] = server_url
+                
+                # Step 3: Send initial instructions to agent
+                try:
+                    # Parse model string to provider_id and model_id
+                    # Format: "claude-sonnet-4" -> provider: anthropic, model: claude-sonnet-4
+                    # For now, use default agent and model from request
+                    await self.session_manager.send_message(
+                        session_id=session_info.session_id,
+                        message=request.instructions,
+                        agent_name=None,  # Use default agent
+                        provider_id=None,  # Let OpenCode determine
+                        model_id=request.model if request.model else None
+                    )
+                    logfire.info("Initial instructions sent to agent", extra={
+                        "session_id": session_info.session_id
+                    })
+                except Exception as e:
+                    logfire.error("Failed to send initial instructions", extra={
+                        "session_id": session_info.session_id,
+                        "error": str(e)
+                    })
+                    # Continue anyway - session is created
                 
                 logfire.info("Agent session spawned successfully", extra={
                     "session_id": session_info.session_id,
@@ -152,11 +193,46 @@ class SessionService:
             try:
                 logfire.debug("Querying session status", extra={"session_id": session_id})
                 
-                # Query session via session_manager (returns Dict)
+                # Get server URL from registry
+                if session_id not in self._sessions:
+                    raise ValueError(f"Session {session_id} not found in registry")
+                
+                server_url = self._sessions[session_id]
+                
+                # Query session via session_manager (returns Dict with OpenCode fields)
                 session_data = await self.session_manager.get_session(session_id)
                 
-                # Convert dict to SessionInfo
-                session_info = SessionInfo(**session_data)
+                # Get messages to populate message list
+                try:
+                    messages_data = await self.session_manager.get_messages(session_id)
+                    messages = []
+                    for msg in messages_data:
+                        info = msg.get('info', {})
+                        parts = msg.get('parts', [])
+                        # Build message dict
+                        message_dict = {
+                            "id": info.get('id', ''),
+                            "role": info.get('role', 'unknown'),
+                            "parts": parts
+                        }
+                        messages.append(message_dict)
+                except Exception as e:
+                    logfire.warning("Failed to fetch messages", extra={
+                        "session_id": session_id,
+                        "error": str(e)
+                    })
+                    messages = []
+                
+                # Map OpenCode fields to SessionInfo fields
+                session_info = SessionInfo(
+                    session_id=session_data.get("id", session_id),
+                    agent_role=session_data.get("metadata", {}).get("agent_role", "unknown"),
+                    status=SessionStatus.RUNNING,  # Map from OpenCode status if available
+                    started_at=session_data.get("created", ""),
+                    server_url=server_url,
+                    progress=session_data.get("metadata", {}).get("progress", {}),
+                    messages=messages
+                )
                 
                 logfire.debug("Session status retrieved", extra={
                     "session_id": session_id,
@@ -234,7 +310,23 @@ class SessionService:
                 
                 # First check session status
                 session_data = await self.session_manager.get_session(session_id)
-                session_info = SessionInfo(**session_data)
+                
+                # Get server URL from registry
+                if session_id not in self._sessions:
+                    raise ValueError(f"Session {session_id} not found in registry")
+                
+                server_url = self._sessions[session_id]
+                
+                # Map OpenCode fields to SessionInfo fields
+                session_info = SessionInfo(
+                    session_id=session_data.get("id", session_id),
+                    agent_role=session_data.get("metadata", {}).get("agent_role", "unknown"),
+                    status=SessionStatus.RUNNING,
+                    started_at=session_data.get("created", ""),
+                    server_url=server_url,
+                    progress=session_data.get("metadata", {}).get("progress", {}),
+                    messages=[]
+                )
                 
                 if session_info.status not in (SessionStatus.COMPLETED, SessionStatus.FAILED):
                     raise ValueError(f"Session {session_id} not completed (status: {session_info.status})")
@@ -302,8 +394,18 @@ class SessionService:
             try:
                 logfire.info("Stopping agent session", extra={"session_id": session_id})
                 
-                # Stop session via session_manager
-                success = await self.session_manager.abort_session(session_id)
+                # Get server_url from own registry
+                server_url = self._sessions.get(session_id)
+                if not server_url:
+                    raise ValueError(f"Session {session_id} not found in registry")
+                
+                # Stop session via session_manager with explicit server_url
+                success = await self.session_manager.abort_session(session_id, server_url)
+                
+                # Remove from registry on successful stop
+                if success and session_id in self._sessions:
+                    del self._sessions[session_id]
+                    logfire.debug("Session removed from registry", extra={"session_id": session_id})
                 
                 if success:
                     logfire.info("Agent session stopped", extra={"session_id": session_id})
@@ -333,21 +435,53 @@ class SessionService:
             try:
                 logfire.debug("Listing active sessions")
                 
-                # Get all sessions via session_manager
-                all_sessions = await self.session_manager.list_sessions()
+                # Get unique server URLs from registry
+                unique_servers = set(self._sessions.values())
                 
-                # Filter for active sessions only
+                if not unique_servers:
+                    logfire.info("No sessions in registry")
+                    return []
+                
+                # Collect sessions from all servers
+                all_sessions = []
+                for server_url in unique_servers:
+                    try:
+                        server_sessions = await self.session_manager.list_sessions(server_url)
+                        all_sessions.extend(server_sessions)
+                    except Exception as e:
+                        logfire.warning(f"Failed to list sessions from {server_url}", extra={"error": str(e)})
+                        continue
+                
+                # Filter for active sessions only (those in our registry)
                 active_sessions = [
                     session for session in all_sessions 
-                    if session.status in [SessionStatus.RUNNING, SessionStatus.STARTING]
+                    if session.get("id") in self._sessions
                 ]
                 
+                # Convert to SessionInfo objects
+                session_infos = []
+                for session_dict in active_sessions:
+                    try:
+                        session_info = SessionInfo(
+                            session_id=session_dict.get("id", ""),
+                            agent_role=session_dict.get("metadata", {}).get("agent_role", "unknown"),
+                            status=SessionStatus.RUNNING,
+                            started_at=session_dict.get("created", ""),
+                            server_url=self._sessions[session_dict["id"]],
+                            progress=session_dict.get("progress", {}),
+                            messages=[]
+                        )
+                        session_infos.append(session_info)
+                    except Exception as e:
+                        logfire.warning(f"Failed to parse session {session_dict.get('id')}", extra={"error": str(e)})
+                        continue
+                
                 logfire.info("Active sessions listed", extra={
-                    "total_sessions": len(all_sessions),
-                    "active_sessions": len(active_sessions)
+                    "total_servers": len(unique_servers),
+                    "active_sessions": len(session_infos)
                 })
                 
-                return active_sessions
+                return session_infos
                 
             except Exception as e:
                 logfire.error("Session listing failed", extra={"error": str(e)})
