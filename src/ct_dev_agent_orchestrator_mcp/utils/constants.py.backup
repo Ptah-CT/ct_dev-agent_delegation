@@ -1,0 +1,31 @@
+"""Constants for the Agent Orchestrator MCP Server."""
+
+# Concurrency limits
+MAX_AGENTS = 5
+DEFAULT_SEMAPHORE_LIMIT = 5
+
+# HTTP timeouts
+DEFAULT_HTTP_TIMEOUT = 30.0
+
+# Logfire configuration
+LOGFIRE_PROJECT_NAME = "ct-dev-agent-orchestrator"
+LOGFIRE_SERVICE_NAME = "mcp-server"
+
+# Response formatting
+TOOL_RESPONSE_SUCCESS = "success"
+TOOL_RESPONSE_ERROR = "error"
+
+# Session management
+SESSION_TIMEOUT = 30.0
+MAX_RETRY_ATTEMPTS = 3
+RETRY_DELAY = 1.0
+
+# API endpoints
+OPENCODE_API_BASE_URL = "http://localhost:8080"
+OPENCODE_API_TIMEOUT = 30.0
+
+# Error messages
+ERROR_SESSION_NOT_FOUND = "Session not found"
+ERROR_AGENT_NOT_FOUND = "Agent not found"
+ERROR_INVALID_REQUEST = "Invalid request"
+ERROR_INTERNAL_SERVER = "Internal server error"

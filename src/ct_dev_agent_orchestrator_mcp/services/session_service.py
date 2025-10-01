@@ -208,9 +208,17 @@ class SessionService:
                 
                 server_url = self._sessions[session_id]
                 
-                # Query session via session_manager (returns Dict with OpenCode fields)
-                session_data = await self.session_manager.get_session(session_id)
-                
+                # Get local session info from session_manager (contains metadata)
+                local_session_info = self.session_manager._sessions.get(session_id)
+                if not local_session_info:
+                    raise ValueError(f"Session {session_id} not found in session manager")
+
+                # Query OpenCode API for current status (optional, for live status)
+                try:
+                    session_data = await self.session_manager.get_session(session_id)
+                except Exception:
+                    session_data = {}
+
                 # Get messages to populate message list
                 try:
                     messages_data = await self.session_manager.get_messages(session_id)
@@ -231,16 +239,16 @@ class SessionService:
                         "error": str(e)
                     })
                     messages = []
-                
-                # Map OpenCode fields to SessionInfo fields
-                # NOTE: OpenCode API returns "created" (not "created_at") and flat "role" (not nested metadata)
+
+                # Use local metadata as primary source (OpenCode API doesn't preserve custom metadata)
+                local_metadata = local_session_info.get("metadata", {})
                 session_info = SessionInfo(
-                    session_id=session_data.get("id", session_id),
-                    agent_role=session_data.get("role", session_data.get("metadata", {}).get("agent_role", "unknown")),
-                    status=SessionStatus.RUNNING,  # Map from OpenCode status if available
-                    started_at=session_data.get("created", session_data.get("created_at", "")),
+                    session_id=session_id,
+                    agent_role=local_metadata.get("agent_role", "unknown"),
+                    status=SessionStatus.RUNNING,
+                    started_at=local_session_info.get("created_at", ""),
                     server_url=server_url,
-                    progress=session_data.get("metadata", {}).get("progress", {}),
+                    progress=local_metadata.get("progress", {}),
                     messages=messages
                 )
                 
@@ -471,18 +479,22 @@ class SessionService:
                         active_sessions.append(session)
                         seen_ids.add(session_id)
 
-                # Convert to SessionInfo objects
+                # Convert to SessionInfo objects using local metadata
                 session_infos = []
                 for session_dict in active_sessions:
                     try:
-                        # NOTE: OpenCode API returns "created" (not "created_at") and flat "role" (not nested metadata)
+                        session_id = session_dict.get("id", "")
+                        # Get local session info for accurate metadata
+                        local_session_info = self.session_manager._sessions.get(session_id, {})
+                        local_metadata = local_session_info.get("metadata", {})
+
                         session_info = SessionInfo(
-                            session_id=session_dict.get("id", ""),
-                            agent_role=session_dict.get("role", session_dict.get("metadata", {}).get("agent_role", "unknown")),
+                            session_id=session_id,
+                            agent_role=local_metadata.get("agent_role", "unknown"),
                             status=SessionStatus.RUNNING,
-                            started_at=session_dict.get("created", session_dict.get("created_at", "")),
-                            server_url=self._sessions[session_dict["id"]],
-                            progress=session_dict.get("progress", {}),
+                            started_at=local_session_info.get("created_at", ""),
+                            server_url=self._sessions[session_id],
+                            progress=local_metadata.get("progress", {}),
                             messages=[]
                         )
                         session_infos.append(session_info)
