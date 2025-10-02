@@ -12,6 +12,41 @@ from ct_dev_agent_orchestrator_mcp.models.session import (
 )
 
 
+# Test data helpers for X^∞ Cap & Delegation fields
+def get_test_original_task() -> Dict[str, Any]:
+    """Get test original_task data."""
+    return {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "title": "Test Task",
+        "description": "Test task description",
+        "requester": "Auctor",
+        "requested_at": "2025-10-02T04:00:00Z"
+    }
+
+
+def get_test_cap_origin() -> Dict[str, Any]:
+    """Get test cap_origin data."""
+    return {
+        "ultimate_authority": "Auctor",
+        "original_scope": "Full system development authority",
+        "granted_at": "2025-10-01T00:00:00Z",
+        "grant_context": "Initial project authorization"
+    }
+
+
+def get_test_delegation_context() -> Dict[str, Any]:
+    """Get test delegation_context data."""
+    return {
+        "delegator": "Project Manager",
+        "delegator_cap": "Implementation coordination (from Auctor on 2025-10-02T03:00:00Z)",
+        "delegated_to": "Backend Specialist",
+        "delegated_cap": "Test implementation with validation",
+        "constraints": ["Follow patterns", "Tests required"],
+        "phantom_level": "Delegation/Cap",
+        "delegated_at": "2025-10-02T04:30:00Z"
+    }
+
+
 class TestSessionStatus:
     """Test SessionStatus enum."""
     
@@ -38,7 +73,12 @@ class TestSpawnAgentRequest:
         request = SpawnAgentRequest(
             role="backend_specialist",
             task_id="550e8400-e29b-41d4-a716-446655440000",
-            instructions="Implement OAuth2 authentication"
+            instructions="Implement OAuth2 authentication",
+            project_directory="/test/path",
+            expected_output="Implementation",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         assert request.role == "backend_specialist"
@@ -46,6 +86,9 @@ class TestSpawnAgentRequest:
         assert request.instructions == "Implement OAuth2 authentication"
         assert request.context == {}
         assert request.model == "claude-sonnet-4"
+        assert request.original_task["task_id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert request.cap_origin["ultimate_authority"] == "Auctor"
+        assert request.delegation_context["delegator"] == "Project Manager"
     
     def test_spawn_agent_request_with_context(self):
         """Test model creation with context."""
@@ -54,8 +97,13 @@ class TestSpawnAgentRequest:
             role="backend_specialist",
             task_id="550e8400-e29b-41d4-a716-446655440000",
             instructions="Implement OAuth2 authentication",
+            project_directory="/test/path",
+            expected_output="Implementation",
             context=context,
-            model="claude-opus-4"
+            model="claude-opus-4",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         assert request.context == context
@@ -81,7 +129,12 @@ class TestSpawnAgentRequest:
             role="backend_specialist",
             task_id="550e8400-e29b-41d4-a716-446655440000",
             instructions="Implement OAuth2 authentication",
-            context={"test": "value"}
+            project_directory="/test/path",
+            expected_output="Implementation",
+            context={"test": "value"},
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         json_data = request.model_dump()
@@ -91,6 +144,9 @@ class TestSpawnAgentRequest:
         assert json_data["instructions"] == "Implement OAuth2 authentication"
         assert json_data["context"] == {"test": "value"}
         assert json_data["model"] == "claude-sonnet-4"
+        assert json_data["original_task"]["requester"] == "Auctor"
+        assert json_data["cap_origin"]["ultimate_authority"] == "Auctor"
+        assert json_data["delegation_context"]["delegator"] == "Project Manager"
     
     def test_spawn_agent_request_from_dict(self):
         """Test model creation from dictionary."""
@@ -98,8 +154,13 @@ class TestSpawnAgentRequest:
             "role": "frontend_specialist",
             "task_id": "123e4567-e89b-12d3-a456-426614174000",
             "instructions": "Build React components",
+            "project_directory": "/test/path",
+            "expected_output": "Implementation",
             "context": {"library": "React"},
-            "model": "claude-haiku-4"
+            "model": "claude-haiku-4",
+            "original_task": get_test_original_task(),
+            "cap_origin": get_test_cap_origin(),
+            "delegation_context": get_test_delegation_context()
         }
         
         request = SpawnAgentRequest(**data)
@@ -122,7 +183,10 @@ class TestSessionInfo:
             agent_role="backend_specialist",
             status=SessionStatus.RUNNING,
             started_at=timestamp,
-            server_url="http://localhost:8080"
+            server_url="http://localhost:8080",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         assert session.session_id == "session-123"
@@ -132,6 +196,9 @@ class TestSessionInfo:
         assert session.progress == {}
         assert session.messages == []
         assert session.server_url == "http://localhost:8080"
+        assert session.original_task["requester"] == "Auctor"
+        assert session.cap_origin["ultimate_authority"] == "Auctor"
+        assert session.delegation_context["delegator"] == "Project Manager"
     
     def test_session_info_with_progress_and_messages(self):
         """Test model creation with progress and messages."""
@@ -149,7 +216,10 @@ class TestSessionInfo:
             started_at=timestamp,
             progress=progress,
             messages=messages,
-            server_url="http://localhost:8081"
+            server_url="http://localhost:8081",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         assert session.progress == progress
@@ -163,7 +233,10 @@ class TestSessionInfo:
             agent_role="database_architect",
             status=SessionStatus.COMPLETED,
             started_at=timestamp,
-            server_url="http://localhost:8082"
+            server_url="http://localhost:8082",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         json_data = session.model_dump()
@@ -187,7 +260,10 @@ class TestSessionInfo:
             "started_at": timestamp,
             "progress": {"initialization": True},
             "messages": [{"type": "system", "content": "Session initialized"}],
-            "server_url": "http://localhost:8083"
+            "server_url": "http://localhost:8083",
+            "original_task": get_test_original_task(),
+            "cap_origin": get_test_cap_origin(),
+            "delegation_context": get_test_delegation_context()
         }
         
         session = SessionInfo(**data)
@@ -319,7 +395,12 @@ class TestModelIntegration:
             role="backend_specialist",
             task_id="workflow-test-123",
             instructions="Complete integration test workflow",
-            context={"test": True}
+            project_directory="/test/path",
+            expected_output="Implementation",
+            context={"test": True},
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         
         # 2. Create session info (simulating session creation)
@@ -329,7 +410,10 @@ class TestModelIntegration:
             agent_role=spawn_request.role,
             status=SessionStatus.STARTING,
             started_at=start_time,
-            server_url="http://localhost:9000"
+            server_url="http://localhost:9000",
+            original_task=spawn_request.original_task,
+            cap_origin=spawn_request.cap_origin,
+            delegation_context=spawn_request.delegation_context
         )
         
         # 3. Update session to running (simulating status change)
@@ -353,6 +437,10 @@ class TestModelIntegration:
         assert session.agent_role == spawn_request.role
         assert output.status == SessionStatus.COMPLETED
         assert output.duration_seconds > 0
+        # Verify X^∞ fields
+        assert session.original_task["requester"] == "Auctor"
+        assert session.cap_origin["ultimate_authority"] == "Auctor"
+        assert session.delegation_context["delegator"] == "Project Manager"
     
     def test_model_serialization_round_trip(self):
         """Test that all models can be serialized and deserialized."""
@@ -360,11 +448,17 @@ class TestModelIntegration:
         spawn_request = SpawnAgentRequest(
             role="test_role",
             task_id="test-task-id",
-            instructions="test instructions"
+            instructions="test instructions",
+            project_directory="/test/path",
+            expected_output="Implementation",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         spawn_dict = spawn_request.model_dump()
         spawn_restored = SpawnAgentRequest(**spawn_dict)
         assert spawn_restored.role == spawn_request.role
+        assert spawn_restored.original_task == spawn_request.original_task
         
         # Test SessionInfo
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -373,11 +467,15 @@ class TestModelIntegration:
             agent_role="test_role",
             status=SessionStatus.RUNNING,
             started_at=timestamp,
-            server_url="http://test.com"
+            server_url="http://test.com",
+            original_task=get_test_original_task(),
+            cap_origin=get_test_cap_origin(),
+            delegation_context=get_test_delegation_context()
         )
         session_dict = session.model_dump()
         session_restored = SessionInfo(**session_dict)
         assert session_restored.session_id == session.session_id
+        assert session_restored.original_task == session.original_task
         
         # Test AgentOutput
         output = AgentOutput(
