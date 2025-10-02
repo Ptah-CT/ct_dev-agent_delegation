@@ -330,6 +330,34 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                      f"\n\nTotal: {len(AgentRole)} specialized roles available"
             )]
         
+
+        
+
+            
+            return [TextContent(
+                type="text",
+                text=warning_text + f"Delegation Status:\n\n"
+                     f"ID: {status['id']}\n"
+                     f"Agent: {status['agent_id']}\n"
+                     f"Task: {status['task_id']}\n"
+                     f"Status: {status['status']}\n"
+                     f"Created: {status['created_at']}\n"
+                     f"Started: {status.get('started_at', 'N/A')}\n"
+                     f"Completed: {status.get('completed_at', 'N/A')}"
+            )]
+        
+
+            
+            return [TextContent(
+                type="text",
+                text=warning_text + f"Delegation Result:\n\n"
+                     f"Success: {result.success}\n"
+                     f"Status: {result.status}\n"
+                     f"Duration: {result.duration_seconds:.2f}s\n"
+                     f"Output: {result.output or 'N/A'}\n"
+                     f"Error: {result.error or 'None'}\n"
+                     f"Scope Deviation: {result.scope_deviation or 'None'}"
+            )]
         
         elif name == "list_agents":
             agents = await agent_manager.list_agents()

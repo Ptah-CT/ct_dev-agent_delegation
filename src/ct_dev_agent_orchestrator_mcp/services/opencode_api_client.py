@@ -9,10 +9,9 @@ import subprocess
 import httpx
 import psutil
 from typing import Optional, Dict, List, Any
-from pathlib import Path
 import logfire
 
-from ..models.agent import Agent, AgentStatus
+from ..models.agent import Agent
 
 
 class OpenCodeAPIClient:
@@ -310,22 +309,27 @@ class OpenCodeAPIClient:
     
     async def send_message(
         self,
+        session_id: str,
         server_url: str,
         message: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Send message to OpenCode agent via API.
+        """Send message to OpenCode session via official API.
         
-        Note: Actual endpoint may vary by OpenCode version.
-        This is a placeholder for when API supports it.
+        Uses the official OpenCode API endpoint: POST /session/:id/message
         
         Args:
-            server_url: Server URL
+            session_id: OpenCode session ID
+            server_url: Server URL (e.g., http://localhost:8000)
             message: Message to send
-            context: Optional context
+            context: Optional context metadata
             
         Returns:
-            Response dict
+            Response dict from OpenCode API
+            
+        Raises:
+            httpx.HTTPError: If request fails
+            RuntimeError: If session not found or other API errors
         """
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -334,25 +338,37 @@ class OpenCodeAPIClient:
                     "context": context or {}
                 }
                 
-                # Try common endpoints
-                for endpoint in ["/chat", "/message", "/api/chat"]:
-                    try:
-                        response = await client.post(
-                            f"{server_url}{endpoint}",
-                            json=payload
-                        )
-                        if response.status_code == 200:
-                            return response.json()
-                    except httpx.HTTPError:
-                        continue
+                # Official OpenCode API endpoint
+                response = await client.post(
+                    f"{server_url}/session/{session_id}/message",
+                    json=payload
+                )
+                response.raise_for_status()
                 
-                # No endpoint worked
-                raise RuntimeError("No chat endpoint available")
+                logfire.info(
+                    "Message sent to OpenCode session",
+                    session_id=session_id,
+                    server_url=server_url,
+                    message_length=len(message)
+                )
                 
+                return response.json()
+                
+        except httpx.HTTPStatusError as e:
+            logfire.error(
+                "OpenCode API error",
+                session_id=session_id,
+                status_code=e.response.status_code,
+                error=str(e)
+            )
+            raise RuntimeError(
+                f"OpenCode API returned {e.response.status_code}: {e.response.text}"
+            )
         except Exception as e:
             logfire.error(
-                "Failed to send message to agent",
-                url=server_url,
+                "Failed to send message to session",
+                session_id=session_id,
+                server_url=server_url,
                 error=str(e)
             )
             raise

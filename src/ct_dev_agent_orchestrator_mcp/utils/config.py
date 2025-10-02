@@ -3,7 +3,6 @@ Centralized configuration management for Agent Orchestrator.
 """
 import os
 import logfire
-from typing import Optional
 
 
 def configure_logfire() -> None:

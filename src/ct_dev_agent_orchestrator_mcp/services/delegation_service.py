@@ -138,7 +138,7 @@ class DelegationService:
             )
             
         except Exception as e:
-            logfire.error(f"Delegation failed", error=str(e))
+            logfire.error("Delegation failed", error=str(e))
             raise
     
     async def _execute_delegation(

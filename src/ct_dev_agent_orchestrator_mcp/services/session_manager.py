@@ -4,7 +4,6 @@ This module provides session-based agent management using OpenCode Server API.
 Each session represents a running agent task.
 """
 
-import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import logfire

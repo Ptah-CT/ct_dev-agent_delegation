@@ -27,6 +27,10 @@ class AgentManager:
     async def start(self):
         """Start agent manager and health monitoring."""
         logfire.info("Starting agent manager")
+        
+        # Initialize OpenCode service with ProcessManager
+        await self.opencode_service.initialize()
+        
         self._health_check_task = asyncio.create_task(self._health_check_loop())
         
     async def stop(self):
@@ -44,6 +48,9 @@ class AgentManager:
         # Stop all agents
         for agent_id in list(self.agents.keys()):
             await self.remove_agent(agent_id)
+        
+        # Shutdown OpenCode service and ProcessManager
+        await self.opencode_service.shutdown()
     
     async def _health_check_loop(self):
         """Background task to check agent health."""
@@ -218,3 +225,61 @@ class AgentManager:
         for agent in self.agents.values():
             counts[agent.status] += 1
         return counts
+
+    async def get_agent_metrics(self, agent_id: str) -> Optional[Dict]:
+        """Get resource metrics for an agent.
+        
+        Args:
+            agent_id: Agent UUID
+            
+        Returns:
+            Dict with metrics or None if not available
+        """
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return None
+        
+        return await self.opencode_service.get_agent_metrics(agent)
+    
+    async def get_agent_output(
+        self, 
+        agent_id: str, 
+        lines: int = 100
+    ) -> Dict[str, List[str]]:
+        """Get recent output from an agent's process.
+        
+        Args:
+            agent_id: Agent UUID
+            lines: Number of lines to return
+            
+        Returns:
+            Dict with 'stdout' and 'stderr' lists
+        """
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return {"stdout": [], "stderr": []}
+        
+        return await self.opencode_service.get_agent_output(agent, lines=lines)
+    
+    async def restart_agent(self, agent_id: str) -> bool:
+        """Restart an agent.
+        
+        Args:
+            agent_id: Agent UUID
+            
+        Returns:
+            True if restarted successfully
+        """
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return False
+        
+        return await self.opencode_service.restart_agent(agent)
+    
+    def get_process_states(self) -> Dict[str, Dict]:
+        """Get process states for all agents.
+        
+        Returns:
+            Dict mapping agent_id to process state info
+        """
+        return self.opencode_service.get_all_process_states()

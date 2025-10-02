@@ -1,9 +1,7 @@
 """HTTP Client wrapper for consistent request handling."""
 
-import asyncio
 from typing import Any, Dict, Optional
 import httpx
-from logfire import span
 
 from .constants import DEFAULT_HTTP_TIMEOUT, OPENCODE_API_BASE_URL
 

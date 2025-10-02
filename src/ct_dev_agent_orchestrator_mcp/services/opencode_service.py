@@ -1,14 +1,13 @@
 """OpenCode service for managing agent server instances."""
 
 import asyncio
-import subprocess
 import httpx
-import psutil
 from typing import Optional, Dict, List
 from pathlib import Path
 import logfire
 
 from ..models.agent import Agent, AgentRole, AgentStatus
+from .process_manager import ProcessManager, ProcessConfig, ProcessState
 
 
 class OpenCodeService:
@@ -27,6 +26,9 @@ class OpenCodeService:
         self._available_agents_cache: Optional[List[Dict]] = None
         self._available_models_cache: Optional[List[str]] = None
         
+        # Initialize professional process manager
+        self.process_manager = ProcessManager()
+        
         # Initialize agents directory path
         # Assuming agents are stored in project root/agents directory
         self.agents_dir = Path(__file__).parent.parent.parent / "agents"
@@ -34,6 +36,16 @@ class OpenCodeService:
             logfire.warning(f"Agents directory not found: {self.agents_dir}")
             # Create directory if it doesn't exist
             self.agents_dir.mkdir(parents=True, exist_ok=True)
+    
+    async def initialize(self):
+        """Initialize the OpenCode service and process manager."""
+        await self.process_manager.start()
+        logfire.info("OpenCode service initialized with process manager")
+    
+    async def shutdown(self):
+        """Shutdown the OpenCode service and all managed processes."""
+        await self.process_manager.stop()
+        logfire.info("OpenCode service shutdown complete")
         
     
     def _get_agent_file(self, role: AgentRole) -> Path:
@@ -55,7 +67,7 @@ class OpenCodeService:
         return agent_file
     
     async def start_agent(self, agent: Agent) -> Agent:
-        """Start OpenCode server for agent.
+        """Start OpenCode server for agent using professional process management.
         
         NOTE: OpenCode 0.13.5+ uses session-based architecture.
         Server starts WITHOUT agent specification. Agent selection
@@ -81,66 +93,66 @@ class OpenCodeService:
                 command=" ".join(cmd)
             )
             
-            # Capture stdout to read the port OpenCode chooses
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                text=True,
-                bufsize=1  # Line buffered
+            # Configure professional process management
+            process_config = ProcessConfig(
+                auto_restart=True,
+                max_restart_attempts=3,
+                restart_delay_base=2.0,
+                restart_delay_max=30.0,
+                startup_timeout=30.0,
+                shutdown_timeout=10.0,
+                capture_output=True,
+                max_memory_mb=1024.0,  # 1GB limit per agent
+                max_cpu_percent=80.0    # 80% CPU limit
             )
             
-            # Read port from output
-            # OpenCode outputs: "opencode server listening on http://127.0.0.1:XXXX"
-            port = None
+            # Storage for port detection
+            port_container = {"port": None}
+            
+            def on_output_callback(line: str):
+                """Callback to capture port from OpenCode output."""
+                if "listening on" in line and "http://" in line:
+                    import re
+                    match = re.search(r'http://[^:]+:(\d+)', line)
+                    if match:
+                        port_container["port"] = int(match.group(1))
+                        logfire.info(
+                            f"OpenCode chose port {port_container['port']} for agent {agent.agent_id}"
+                        )
+            
+            # Create managed process through ProcessManager
+            managed_process = await self.process_manager.create_process(
+                process_id=agent.agent_id,
+                command=cmd,
+                config=process_config
+            )
+            
+            # Set output callback
+            managed_process.on_output = on_output_callback
+            
+            # Wait for port detection
             max_wait = 5  # seconds
             start_time = asyncio.get_event_loop().time()
             
-            while port is None and (asyncio.get_event_loop().time() - start_time) < max_wait:
-                # Check if process died
-                if process.poll() is not None:
-                    stderr_output = process.stderr.read() if process.stderr else ""
-                    raise RuntimeError(
-                        f"Server process died immediately: {process.returncode}\n"
-                        f"stderr: {stderr_output}"
-                    )
-                
-                # Try to read a line from stdout
-                try:
-                    line = process.stdout.readline()
-                    if not line:
-                        await asyncio.sleep(0.1)
-                        continue
-                    
-                    logfire.debug(f"OpenCode output: {line.strip()}")
-                    
-                    # Parse port from line like "opencode server listening on http://127.0.0.1:8000"
-                    if "listening on" in line and "http://" in line:
-                        import re
-                        match = re.search(r'http://[^:]+:(\d+)', line)
-                        if match:
-                            port = int(match.group(1))
-                            logfire.info(f"OpenCode chose port {port} for agent {agent.agent_id}")
-                            break
-                except Exception as e:
-                    logfire.debug(f"Error reading OpenCode output: {e}")
-                    await asyncio.sleep(0.1)
+            while port_container["port"] is None and (asyncio.get_event_loop().time() - start_time) < max_wait:
+                if managed_process.state == ProcessState.FAILED:
+                    raise RuntimeError("Server process failed to start")
+                await asyncio.sleep(0.1)
             
-            if port is None:
+            if port_container["port"] is None:
                 raise RuntimeError("Could not determine OpenCode port from output")
             
             # Update agent details
-            agent.pid = process.pid
-            agent.port = port
+            agent.pid = managed_process.pid
+            agent.port = port_container["port"]
             # Use /config as health check (no /health endpoint)
-            agent.health_check_url = f"http://localhost:{port}/config"
+            agent.health_check_url = f"http://localhost:{agent.port}/config"
             agent.status = AgentStatus.STARTING
             
             # Wait for health check
             if await self._wait_for_health(agent, timeout=8):
                 agent.status = AgentStatus.IDLE
-                logfire.info(f"OpenCode server started for agent {agent.agent_id}", port=port)
+                logfire.info(f"OpenCode server started for agent {agent.agent_id}", port=agent.port)
             else:
                 agent.status = AgentStatus.ERROR
                 logfire.error(f"Agent {agent.agent_id} health check failed")
@@ -181,7 +193,7 @@ class OpenCodeService:
         return False
     
     async def stop_agent(self, agent: Agent) -> bool:
-        """Stop OpenCode server for agent.
+        """Stop OpenCode server for agent using professional process management.
         
         Args:
             agent: Agent instance
@@ -189,35 +201,29 @@ class OpenCodeService:
         Returns:
             True if stopped successfully
         """
-        if not agent.pid:
+        if not agent.agent_id:
             return True
         
         try:
-            process = psutil.Process(agent.pid)
+            # Use ProcessManager for graceful shutdown
+            success = await self.process_manager.stop_process(
+                process_id=agent.agent_id,
+                timeout=agent.status == AgentStatus.ERROR and 2.0 or None
+            )
             
-            # Terminate gracefully
-            process.terminate()
+            if success:
+                logfire.info(f"Agent {agent.agent_id} stopped", pid=agent.pid)
+            else:
+                logfire.warning(f"Agent {agent.agent_id} stop had issues")
             
-            # Wait up to 5 seconds
-            try:
-                process.wait(timeout=5)
-            except psutil.TimeoutExpired:
-                # Force kill if still running
-                process.kill()
-                process.wait(timeout=2)
+            return success
             
-            logfire.info(f"Agent {agent.agent_id} stopped", pid=agent.pid)
-            return True
-            
-        except psutil.NoSuchProcess:
-            # Already stopped
-            return True
         except Exception as e:
             logfire.error(f"Failed to stop agent {agent.agent_id}", error=str(e))
             return False
     
     async def check_health(self, agent: Agent) -> bool:
-        """Check if agent is healthy.
+        """Check if agent is healthy using ProcessManager metrics.
         
         Args:
             agent: Agent instance
@@ -225,8 +231,17 @@ class OpenCodeService:
         Returns:
             True if healthy
         """
-        if not agent.health_check_url:
+        # First check process state through ProcessManager
+        managed_process = self.process_manager.get_process(agent.agent_id)
+        if not managed_process:
             return False
+        
+        if managed_process.state not in [ProcessState.RUNNING, ProcessState.STARTING]:
+            return False
+        
+        # Then check HTTP health endpoint
+        if not agent.health_check_url:
+            return managed_process.state == ProcessState.RUNNING
         
         try:
             async with httpx.AsyncClient() as client:
@@ -237,6 +252,92 @@ class OpenCodeService:
                 return response.status_code == 200
         except Exception:
             return False
+
+    async def get_agent_metrics(self, agent: Agent) -> Optional[Dict]:
+        """Get resource metrics for an agent.
+        
+        Args:
+            agent: Agent instance
+            
+        Returns:
+            Dict with metrics or None if not available
+        """
+        metrics = self.process_manager.get_process_metrics(agent.agent_id)
+        if not metrics:
+            return None
+        
+        return {
+            "cpu_percent": metrics.cpu_percent,
+            "memory_mb": metrics.memory_mb,
+            "memory_percent": metrics.memory_percent,
+            "num_threads": metrics.num_threads,
+            "open_files": metrics.open_files,
+            "connections": metrics.connections,
+            "uptime_seconds": metrics.uptime_seconds,
+            "restart_count": metrics.restart_count
+        }
+    
+    async def get_agent_output(
+        self, 
+        agent: Agent, 
+        lines: int = 100,
+        include_stderr: bool = True
+    ) -> Dict[str, List[str]]:
+        """Get recent output from an agent's process.
+        
+        Args:
+            agent: Agent instance
+            lines: Number of lines to return
+            include_stderr: Include stderr output
+            
+        Returns:
+            Dict with 'stdout' and optionally 'stderr' lists
+        """
+        return await self.process_manager.get_process_output(
+            agent.agent_id,
+            lines=lines,
+            include_stderr=include_stderr
+        )
+    
+    async def restart_agent(self, agent: Agent) -> bool:
+        """Restart an agent with exponential backoff.
+        
+        Args:
+            agent: Agent instance
+            
+        Returns:
+            True if restarted successfully
+        """
+        agent.status = AgentStatus.STARTING
+        
+        success = await self.process_manager.restart_process(agent.agent_id)
+        
+        if success:
+            agent.status = AgentStatus.IDLE
+            logfire.info(f"Agent {agent.agent_id} restarted successfully")
+        else:
+            agent.status = AgentStatus.ERROR
+            logfire.error(f"Agent {agent.agent_id} restart failed")
+        
+        return success
+    
+    def get_all_process_states(self) -> Dict[str, Dict]:
+        """Get state summary for all managed processes.
+        
+        Returns:
+            Dict mapping agent_id to process state info
+        """
+        result = {}
+        for process in self.process_manager.get_all_processes():
+            result[process.process_id] = {
+                "state": process.state.value,
+                "pid": process.pid,
+                "uptime_seconds": process.metrics.uptime_seconds,
+                "restart_count": process.metrics.restart_count,
+                "cpu_percent": process.metrics.cpu_percent,
+                "memory_mb": process.metrics.memory_mb
+            }
+        return result
     
     async def send_request(
         self,

@@ -1,7 +1,7 @@
 """Session data models for V2 Agent Orchestrator."""
 
 from enum import Enum
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -49,6 +49,10 @@ class SessionInfo(BaseModel):
     progress: Dict[str, Any] = Field(default_factory=dict, description="Progress information")
     messages: List[Dict] = Field(default_factory=list, description="Session messages")
     server_url: str = Field(..., description="Agent server URL")
+    scope_deviation: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Scope deviation detection data. Structure: {detected: bool, type: str, severity: str, message: str, timestamp: str}"
+    )
 
 
 class AgentOutput(BaseModel):

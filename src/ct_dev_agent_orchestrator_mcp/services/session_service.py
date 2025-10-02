@@ -27,16 +27,17 @@ except Exception:
     logfire.configure(send_to_logfire=False)
 
 from ..models.session import (
-    SpawnAgentRequest, 
-    SessionInfo, 
-    AgentOutput, 
+    SpawnAgentRequest,
+    SessionInfo,
+    AgentOutput,
     SessionStatus
 )
-from ..models.agent import AgentStatus, AgentRole
+from ..models.agent import AgentRole
 from .session_manager import OpenCodeSessionManager
 from .opencode_api_client import OpenCodeAPIClient
 from .agent_manager import AgentManager
 from .opencode_service import OpenCodeService
+from ..utils.scope_deviation import ScopeDeviationDetector
 
 
 class SessionService:
@@ -163,6 +164,59 @@ class SessionService:
                 logfire.error("Session spawn failed", extra={"error": str(e)})
                 raise
 
+    def _check_and_update_scope_deviation(
+        self,
+        session_id: str,
+        response: Dict[str, Any]
+    ) -> None:
+        """
+        Check agent response for scope deviation and update session metadata.
+
+        Args:
+            session_id: Session UUID
+            response: Agent response dict with 'parts' list
+        """
+        try:
+            # Extract text from response parts
+            parts = response.get("parts", [])
+            for part in parts:
+                if part.get("type") == "text":
+                    text = part.get("text", "")
+                    deviation = ScopeDeviationDetector.detect_scope_keywords(text)
+
+                    if deviation:
+                        # Update session metadata with deviation info
+                        session_info = self.session_manager._sessions.get(session_id)
+                        if session_info:
+                            session_info["scope_deviation"] = deviation
+
+                            # Log and potentially escalate
+                            if ScopeDeviationDetector.should_escalate(deviation):
+                                logfire.error(
+                                    "SCOPE DEVIATION DETECTED - ESCALATION REQUIRED",
+                                    session_id=session_id,
+                                    deviation_type=deviation["type"],
+                                    severity=deviation["severity"],
+                                    message=deviation["message"]
+                                )
+                            else:
+                                logfire.warn(
+                                    "Scope deviation detected",
+                                    session_id=session_id,
+                                    deviation_type=deviation["type"],
+                                    severity=deviation["severity"]
+                                )
+
+                        # Stop after first deviation detected
+                        break
+
+        except Exception as e:
+            logfire.error(
+                "Failed to check scope deviation",
+                session_id=session_id,
+                error=str(e)
+            )
+
     async def _send_initial_instructions(
         self,
         session_id: str,
@@ -174,13 +228,18 @@ class SessionService:
         This runs as a background task and doesn't block spawn_agent.
         """
         try:
-            await self.session_manager.send_message(
+            response = await self.session_manager.send_message(
                 session_id=session_id,
                 message=instructions,
                 agent_name=None,
                 provider_id=None,
                 model_id=model
             )
+
+            # Check for scope deviation in initial response
+            if response:
+                self._check_and_update_scope_deviation(session_id, response)
+
             logfire.info("Initial instructions sent", extra={
                 "session_id": session_id
             })
@@ -222,9 +281,9 @@ class SessionService:
 
                 # Query OpenCode API for current status (optional, for live status)
                 try:
-                    session_data = await self.session_manager.get_session(session_id)
+                    await self.session_manager.get_session(session_id)
                 except Exception:
-                    session_data = {}
+                    pass
 
                 # Get messages to populate message list
                 try:
@@ -249,6 +308,10 @@ class SessionService:
 
                 # Use local metadata as primary source (OpenCode API doesn't preserve custom metadata)
                 local_metadata = local_session_info.get("metadata", {})
+
+                # Get scope deviation if detected
+                scope_deviation = local_session_info.get("scope_deviation")
+
                 session_info = SessionInfo(
                     session_id=session_id,
                     agent_role=local_metadata.get("agent_role", "unknown"),
@@ -256,7 +319,8 @@ class SessionService:
                     started_at=local_session_info.get("created_at", ""),
                     server_url=server_url,
                     progress=local_metadata.get("progress", {}),
-                    messages=messages
+                    messages=messages,
+                    scope_deviation=scope_deviation
                 )
                 
                 logfire.debug("Session status retrieved", extra={
@@ -276,16 +340,16 @@ class SessionService:
     async def send_to_agent(self, session_id: str, message: str) -> bool:
         """
         Send follow-up message to running session.
-        
+
         Used for clarifications, adjustments, additional instructions.
-        
+
         Args:
             session_id: Target session UUID
             message: Message to send to agent
-            
+
         Returns:
             bool: True if message sent successfully
-            
+
         Raises:
             Exception: If message sending fails
         """
@@ -295,20 +359,24 @@ class SessionService:
                     "session_id": session_id,
                     "message_length": len(message)
                 })
-                
+
                 # Send message via session_manager
                 response = await self.session_manager.send_message(session_id, message)
-                
+
+                # Check for scope deviation in agent response
+                if response:
+                    self._check_and_update_scope_deviation(session_id, response)
+
                 # Consider successful if we got a response without exception
                 success = response is not None
-                
+
                 if success:
                     logfire.info("Message sent successfully", extra={"session_id": session_id})
                 else:
                     logfire.warning("Message sending failed", extra={"session_id": session_id})
-                
+
                 return success
-                
+
             except Exception as e:
                 logfire.error("Message sending failed", extra={
                     "session_id": session_id,
@@ -495,6 +563,9 @@ class SessionService:
                         local_session_info = self.session_manager._sessions.get(session_id, {})
                         local_metadata = local_session_info.get("metadata", {})
 
+                        # Get scope deviation if detected
+                        scope_deviation = local_session_info.get("scope_deviation")
+
                         session_info = SessionInfo(
                             session_id=session_id,
                             agent_role=local_metadata.get("agent_role", "unknown"),
@@ -502,7 +573,8 @@ class SessionService:
                             started_at=local_session_info.get("created_at", ""),
                             server_url=self._sessions[session_id],
                             progress=local_metadata.get("progress", {}),
-                            messages=[]
+                            messages=[],
+                            scope_deviation=scope_deviation
                         )
                         session_infos.append(session_info)
                     except Exception as e:
