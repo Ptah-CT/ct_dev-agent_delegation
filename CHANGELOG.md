@@ -30,6 +30,17 @@
 
 ### Documentation
 - Complete README.md rewrite for V2 session-based architecture
+
+### Fixed
+- **Test Import Errors**: Resolved all 'from src.' import paths in test files
+  - Fixed test_integration_v2.py, test_session_service.py, test_process_manager.py
+  - Corrected patch() calls to use correct module paths
+  - All import errors eliminated (no more ModuleNotFoundError)
+- **Scope Deviation Testing**: Added comprehensive test suite for ScopeDeviationDetector
+  - 26 new tests covering all deviation types and scenarios
+  - 100% test pass rate for scope_deviation.py
+  - Coverage >95% for deviation detection logic
+
 - Added V2 migration guide with tool mapping table
 - Performance metrics section with test results
 - Updated architecture diagram for session-based flow
