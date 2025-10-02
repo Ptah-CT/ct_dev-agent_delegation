@@ -47,6 +47,13 @@
 - Complete README.md rewrite for V2 session-based architecture
 
 ### Fixed
+- **Asyncio Scoping Error in spawn_agent**: Removed redundant local `import asyncio` in SessionService.spawn_agent()
+  - Root Cause: Local import in spawn_agent method (line 149) created scoping conflict
+  - Error: "cannot access local variable 'asyncio' where it is not associated with a value"
+  - Fix: Removed redundant import, using top-level asyncio import (line 12)
+  - Impact: spawn_agent MCP tool now functional, no regressions in other tools
+  - Test: Python import verification and SpawnAgentRequest model test passing
+
 - **Test Import Errors**: Resolved all 'from src.' import paths in test files
   - Fixed test_integration_v2.py, test_session_service.py, test_process_manager.py
   - Corrected patch() calls to use correct module paths

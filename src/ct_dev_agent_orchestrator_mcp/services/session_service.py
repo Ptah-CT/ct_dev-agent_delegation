@@ -143,7 +143,6 @@ class SessionService:
 
                 # Step 3: Queue initial instructions in background (fire-and-forget)
                 # Don't wait for AI response - return immediately so spawn_agent is fast
-                import asyncio
                 asyncio.create_task(self._send_initial_instructions(
                     session_id=session_info.session_id,
                     instructions=request.instructions,
