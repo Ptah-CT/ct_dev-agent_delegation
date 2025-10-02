@@ -81,7 +81,8 @@ class SessionService:
         2. Creates session via SessionManager with the agent's server
         
         Args:
-            request: SpawnAgentRequest with role, task_id, instructions, context, model
+            request: SpawnAgentRequest with role, task_id, instructions, context, model,
+                    original_task, cap_origin, delegation_context
             
         Returns:
             SessionInfo: Created session with session_id for tracking
@@ -94,7 +95,9 @@ class SessionService:
                 logfire.info("Spawning agent session", extra={
                     "role": request.role,
                     "task_id": request.task_id,
-                    "model": request.model
+                    "model": request.model,
+                    "delegator": request.delegation_context.get("delegator"),
+                    "delegated_to": request.delegation_context.get("delegated_to")
                 })
                 
                 # Step 1: Create agent via agent_manager (convert str to AgentRole enum)
@@ -112,7 +115,11 @@ class SessionService:
                         "expected_output": request.expected_output,
                         "context": request.context,
                         "agent_id": agent.agent_id,
-                        "agent_role": request.role
+                        "agent_role": request.role,
+                        # X^∞ Responsibility & Cap Tracking
+                        "original_task": request.original_task,
+                        "cap_origin": request.cap_origin,
+                        "delegation_context": request.delegation_context
                     }
                 )
                 
@@ -124,7 +131,11 @@ class SessionService:
                     started_at=session_info_dict["created_at"],
                     server_url=server_url,
                     progress={},
-                    messages=[]
+                    messages=[],
+                    # X^∞ Responsibility & Cap Tracking
+                    original_task=request.original_task,
+                    cap_origin=request.cap_origin,
+                    delegation_context=request.delegation_context
                 )
                 
                 # Add to session registry for tracking
@@ -142,7 +153,8 @@ class SessionService:
                 logfire.info("Agent session spawned successfully", extra={
                     "session_id": session_info.session_id,
                     "server_url": session_info.server_url,
-                    "status": session_info.status
+                    "status": session_info.status,
+                    "delegator": request.delegation_context.get("delegator")
                 })
                 
                 return session_info
@@ -158,7 +170,11 @@ class SessionService:
                     started_at=datetime.utcnow().isoformat(),
                     server_url="",
                     progress={},
-                    messages=[]
+                    messages=[],
+                    # X^∞ Responsibility & Cap Tracking (minimal fallback)
+                    original_task=request.original_task,
+                    cap_origin=request.cap_origin,
+                    delegation_context=request.delegation_context
                 )
             except Exception as e:
                 logfire.error("Session spawn failed", extra={"error": str(e)})
@@ -320,7 +336,11 @@ class SessionService:
                     server_url=server_url,
                     progress=local_metadata.get("progress", {}),
                     messages=messages,
-                    scope_deviation=scope_deviation
+                    scope_deviation=scope_deviation,
+                    # X^∞ Responsibility & Cap Tracking
+                    original_task=local_metadata.get("original_task", {}),
+                    cap_origin=local_metadata.get("cap_origin", {}),
+                    delegation_context=local_metadata.get("delegation_context", {})
                 )
                 
                 logfire.debug("Session status retrieved", extra={
@@ -574,7 +594,11 @@ class SessionService:
                             server_url=self._sessions[session_id],
                             progress=local_metadata.get("progress", {}),
                             messages=[],
-                            scope_deviation=scope_deviation
+                            scope_deviation=scope_deviation,
+                            # X^∞ Responsibility & Cap Tracking
+                            original_task=local_metadata.get("original_task", {}),
+                            cap_origin=local_metadata.get("cap_origin", {}),
+                            delegation_context=local_metadata.get("delegation_context", {})
                         )
                         session_infos.append(session_info)
                     except Exception as e:

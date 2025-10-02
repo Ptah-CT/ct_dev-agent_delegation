@@ -25,6 +25,20 @@ class SpawnAgentRequest(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
     model: str = Field(default="claude-sonnet-4", description="Model to use")
     
+    # X^∞ Responsibility & Cap Tracking Fields
+    original_task: Dict[str, Any] = Field(
+        ...,
+        description="Original task that started this work (task_id, title, description, requester, requested_at)"
+    )
+    cap_origin: Dict[str, Any] = Field(
+        ...,
+        description="Cap origin - ultimate authority source (ultimate_authority, original_scope, granted_at, grant_context)"
+    )
+    delegation_context: Dict[str, Any] = Field(
+        ...,
+        description="Current delegation context (delegator, delegator_cap, delegated_to, delegated_cap, constraints, phantom_level, delegated_at)"
+    )
+    
     class Config:
         json_schema_extra = {
             "example": {
@@ -34,7 +48,29 @@ class SpawnAgentRequest(BaseModel):
                 "project_directory": "/home/auctor/dev/my-project",
                 "expected_output": "Report",
                 "context": {"framework": "FastAPI", "db": "PostgreSQL"},
-                "model": "claude-sonnet-4"
+                "model": "claude-sonnet-4",
+                "original_task": {
+                    "task_id": "a86d0e77-a8b8-4dcc-b854-cc27fe474c76",
+                    "title": "Add OAuth Authentication",
+                    "description": "Implement OAuth2 authentication system with JWT tokens",
+                    "requester": "Auctor",
+                    "requested_at": "2025-10-02T04:00:00Z"
+                },
+                "cap_origin": {
+                    "ultimate_authority": "Auctor",
+                    "original_scope": "Full system development authority",
+                    "granted_at": "2025-10-01T00:00:00Z",
+                    "grant_context": "Initial project authorization"
+                },
+                "delegation_context": {
+                    "delegator": "Project Manager",
+                    "delegator_cap": "Implementation coordination (from Auctor on 2025-10-02T03:00:00Z)",
+                    "delegated_to": "Backend Specialist",
+                    "delegated_cap": "OAuth implementation with tests",
+                    "constraints": ["Follow patterns", "Tests required"],
+                    "phantom_level": "Delegation/Cap",
+                    "delegated_at": "2025-10-02T04:30:00Z"
+                }
             }
         }
 
@@ -52,6 +88,20 @@ class SessionInfo(BaseModel):
     scope_deviation: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Scope deviation detection data. Structure: {detected: bool, type: str, severity: str, message: str, timestamp: str}"
+    )
+    
+    # X^∞ Responsibility & Cap Tracking Fields
+    original_task: Dict[str, Any] = Field(
+        ...,
+        description="Original task that started this work (task_id, title, description, requester, requested_at)"
+    )
+    cap_origin: Dict[str, Any] = Field(
+        ...,
+        description="Cap origin - ultimate authority source (ultimate_authority, original_scope, granted_at, grant_context)"
+    )
+    delegation_context: Dict[str, Any] = Field(
+        ...,
+        description="Current delegation context (delegator, delegator_cap, delegated_to, delegated_cap, constraints, phantom_level, delegated_at)"
     )
 
 

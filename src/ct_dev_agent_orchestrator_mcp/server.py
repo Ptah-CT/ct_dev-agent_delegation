@@ -52,8 +52,10 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="spawn_agent",
             description=(
-                "Spawns a specialized agent session for interactive work. "
-                "Returns session_id for tracking and follow-up communication."
+                "Spawns a specialized agent session for interactive work with complete X^∞ responsibility tracking. "
+                "Returns session_id for tracking and follow-up communication. "
+                "REQUIRED: All X^∞ responsibility fields (original_task, cap_origin, delegation_context) must be provided "
+                "to ensure full traceability of authority and delegation chains."
             ),
             inputSchema={
                 "type": "object",
@@ -88,9 +90,46 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Model to use",
                         "default": "claude-sonnet-4"
+                    },
+                    "original_task": {
+                        "type": "object",
+                        "description": "Original task that started this work",
+                        "properties": {
+                            "task_id": {"type": "string", "description": "Original task UUID"},
+                            "title": {"type": "string", "description": "Original task title"},
+                            "description": {"type": "string", "description": "Complete original task description"},
+                            "requester": {"type": "string", "description": "Who originally requested the task"},
+                            "requested_at": {"type": "string", "description": "ISO 8601 timestamp of original request"}
+                        },
+                        "required": ["task_id", "title", "description", "requester", "requested_at"]
+                    },
+                    "cap_origin": {
+                        "type": "object",
+                        "description": "Origin of the capability/authority",
+                        "properties": {
+                            "ultimate_authority": {"type": "string", "description": "Ultimate authority (e.g., 'Auctor')"},
+                            "original_scope": {"type": "string", "description": "Scope of original authority"},
+                            "granted_at": {"type": "string", "description": "ISO 8601 timestamp when authority was granted"},
+                            "grant_context": {"type": "string", "description": "Context of authority grant"}
+                        },
+                        "required": ["ultimate_authority", "original_scope", "granted_at", "grant_context"]
+                    },
+                    "delegation_context": {
+                        "type": "object",
+                        "description": "Current delegation context - who delegates NOW with what cap",
+                        "properties": {
+                            "delegator": {"type": "string", "description": "Who is delegating NOW"},
+                            "delegator_cap": {"type": "string", "description": "What cap the delegator has (with reference to source)"},
+                            "delegated_to": {"type": "string", "description": "Agent role receiving delegation"},
+                            "delegated_cap": {"type": "string", "description": "What capability is being delegated"},
+                            "constraints": {"type": "array", "items": {"type": "string"}, "description": "Constraints for this delegation"},
+                            "phantom_level": {"type": "string", "description": "Phantom level (e.g., 'Delegation/Cap')"},
+                            "delegated_at": {"type": "string", "description": "ISO 8601 timestamp of delegation"}
+                        },
+                        "required": ["delegator", "delegator_cap", "delegated_to", "delegated_cap", "constraints", "phantom_level", "delegated_at"]
                     }
                 },
-                "required": ["role", "task_id", "instructions", "project_directory", "expected_output"]
+                "required": ["role", "task_id", "instructions", "project_directory", "expected_output", "original_task", "cap_origin", "delegation_context"]
             }
         ),
         Tool(
@@ -213,7 +252,9 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                      f"Session ID: {session_info.session_id}\n"
                      f"Agent Role: {session_info.agent_role}\n"
                      f"Status: {session_info.status.value if hasattr(session_info.status, 'value') else session_info.status}\n"
-                     f"Server URL: {session_info.server_url}\n\n"
+                     f"Server URL: {session_info.server_url}\n"
+                     f"Delegator: {session_info.delegation_context.get('delegator')}\n"
+                     f"Delegated Cap: {session_info.delegation_context.get('delegated_cap')[:80]}...\n\n"
                      f"Use query_session to check progress."
             )]
         
