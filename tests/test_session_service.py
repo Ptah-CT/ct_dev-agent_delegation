@@ -14,8 +14,8 @@ import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from src.ct_dev_agent_orchestrator_mcp.models.session import (
+from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
+from ct_dev_agent_orchestrator_mcp.models.session import (
     SpawnAgentRequest,
     SessionInfo, 
     AgentOutput,
@@ -26,9 +26,9 @@ from src.ct_dev_agent_orchestrator_mcp.models.session import (
 @pytest.fixture
 def session_service():
     """Create SessionService instance with mocked dependencies."""
-    with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager, \
-         patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeAPIClient') as mock_api_client, \
-         patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.AgentManager') as mock_agent_manager:
+    with patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager, \
+         patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeAPIClient') as mock_api_client, \
+         patch('ct_dev_agent_orchestrator_mcp.services.session_service.AgentManager') as mock_agent_manager:
         
         service = SessionService()
         service.session_manager = AsyncMock()
@@ -84,7 +84,7 @@ class TestSpawnAgent:
     async def test_spawn_agent_success(self, session_service, sample_spawn_request, sample_session_info):
         """Test successful agent spawning."""
         # Setup mocks - create mock agent with port
-        from src.ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
         mock_agent = Agent(
             agent_id="test-agent-id",
             role=AgentRole.BACKEND_SPECIALIST,
@@ -252,7 +252,7 @@ class TestGetAgentOutput:
         
         # Execute with proper datetime mocking
         from datetime import timezone
-        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+        with patch('ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
             # Mock datetime.fromisoformat
             started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
             mock_datetime_class.fromisoformat.return_value = started_dt
@@ -309,7 +309,7 @@ class TestGetAgentOutput:
         
         # Execute with proper datetime mocking
         from datetime import timezone
-        with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+        with patch('ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
             # Mock datetime.fromisoformat
             started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
             mock_datetime_class.fromisoformat.return_value = started_dt
@@ -473,7 +473,7 @@ class TestConcurrency:
     async def test_semaphore_limiting(self, session_service, sample_spawn_request, sample_session_info):
         """Test that semaphore limits concurrent operations."""
         # Setup mocks - create mock agent
-        from src.ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
         mock_agent = Agent(
             agent_id="test-agent-id",
             role=AgentRole.BACKEND_SPECIALIST,

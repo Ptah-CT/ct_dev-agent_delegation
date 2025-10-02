@@ -22,14 +22,14 @@ from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import httpx
 from mcp.types import TextContent
 
-from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from src.ct_dev_agent_orchestrator_mcp.models.session import (
+from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
+from ct_dev_agent_orchestrator_mcp.models.session import (
     SpawnAgentRequest,
     SessionInfo,
     AgentOutput,
     SessionStatus
 )
-from src.ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
+from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
 from ct_dev_agent_orchestrator_mcp.server import call_tool
 
 
@@ -145,7 +145,7 @@ def mock_api():
 @pytest.fixture
 async def integration_session_service(mock_api):
     """Create SessionService with mocked OpenCode API for integration testing."""
-    with patch('src.ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager:
+    with patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager:
         # Configure the mock to use our mock API
         mock_session_manager.return_value.create_session = mock_api.create_session
         mock_session_manager.return_value.get_session = mock_api.get_session
