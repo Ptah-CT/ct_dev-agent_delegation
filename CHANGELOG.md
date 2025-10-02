@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added - X^∞ Responsibility Tracking
+- **BREAKING CHANGE**: Cap & Delegation Responsibility Fields for Agent Spawning
+  - `original_task` field: Tracks the original task that started the work (task_id, title, description, requester, requested_at)
+  - `cap_origin` field: Documents ultimate authority source (ultimate_authority, original_scope, granted_at, grant_context)
+  - `delegation_context` field: Current delegator and delegated cap (delegator, delegator_cap, delegated_to, delegated_cap, constraints, phantom_level, delegated_at)
+  - Full X^∞ compliance: Complete traceability of responsibility chains from original request through all delegation levels
+  - All 3 fields are now **required** for `spawn_agent` MCP tool
+  - SessionInfo model extended with Cap tracking fields
+  - SpawnAgentRequest model extended with Cap tracking fields
+  - SessionService automatically stores and propagates Cap fields through session lifecycle
+  - MCP tool schema updated with detailed Cap field descriptions and examples
+  - Helper functions for test data generation in test_session_models.py
+  - 20 unit tests updated and passing for new Cap fields
+  - Complete integration test coverage for Cap field propagation
+
 ### Added
 - V2 Session-Based Architecture Migration completed
 - Session Models: SpawnAgentRequest, SessionStatus, SessionInfo, AgentOutput
