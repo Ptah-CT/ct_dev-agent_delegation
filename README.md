@@ -1,24 +1,24 @@
-# ct_dev-agent_orchestrator-mcp
+# ct_dev-agent_delegation-mcp
 
-MCP Server for orchestrating ct_dev-agents through OpenCode.ai integration with session-based architecture.
+MCP Server for delegating work to ct_dev-agents through OpenCode.ai integration with delegation-based architecture.
 
 ## 🜄 Purpose
 
-Enables the Main Agent (Claude via OpenCode.ai) to orchestrate specialized ct_dev-agents through interactive sessions. Each agent runs as a separate OpenCode server instance with custom instructions, supporting real-time communication and follow-up messaging for iterative work.
+Enables the Main Agent (Claude via OpenCode.ai) to delegate work to specialized ct_dev-agents through interactive sessions. Each agent runs as a separate OpenCode server instance with custom instructions, supporting real-time communication and follow-up messaging for iterative work.
 
 ## Features
 
-- **Session-Based Architecture**: Interactive agent sessions with follow-up message support
-- **Real-time Session Tracking**: Monitor session status, output, and completion
-- **Concurrent Session Management**: Semaphore-limited (5 concurrent sessions) for resource control
-- **Performance Optimized**: <1s session creation, >5 messages/second throughput
+- **Delegation-Based Architecture**: Interactive agent sessions with follow-up message support
+- **Real-time Delegation Tracking**: Monitor delegation status, output, and completion
+- **Concurrent Delegation Management**: Semaphore-limited (5 concurrent delegations) for resource control
+- **Performance Optimized**: <1s delegation creation, >5 messages/second throughput
 - **Agent Pool Management**: Automatic creation and lifecycle management of agent instances
 - **OpenCode Integration**: Starts and manages `opencode serve` instances for each agent
-- **Task Integration**: Works with ct_dev-task_orchestrator for task tracking
+- **Task Integration**: Works with ct_dev-task_mgmnt for task tracking
 - **Logfire Integration**: Centralized logging and monitoring
-- **SQLite Persistence**: State management for sessions, agents, and audit trail
+- **SQLite Persistence**: State management for delegations, agents, and audit trail
 - **Constitution Gates**: Validates operations against X^∞ principles before execution
-- **Audit Trail**: Complete responsibility tracking for all session events
+- **Audit Trail**: Complete responsibility tracking for all delegation events
 
 ## Agent Roles
 
@@ -46,11 +46,11 @@ Enables the Main Agent (Claude via OpenCode.ai) to orchestrate specialized ct_de
 ## Installation
 
 ```bash
-cd /home/auctor/dev/ct_dev-agent_orchestrator-mcp
+cd /home/auctor/dev/ct_dev-agent_delegation-mcp
 pip install -e .
 
 # Initialize database
-python3 -m ct_dev_agent_orchestrator_mcp.storage.database migrate
+python3 -m ct_dev_agent_delegation_mcp.storage.database migrate
 ```
 
 ## Configuration
@@ -62,7 +62,7 @@ Add to your MCP settings (e.g., `~/.config/opencode/mcp_settings.json`):
   "mcpServers": {
     "ct_dev-agent_orchestrator": {
       "command": "python",
-      "args": ["-m", "ct_dev_agent_orchestrator_mcp.server"],
+      "args": ["-m", "ct_dev_agent_delegation_mcp.server"],
       "env": {
         "LOGFIRE_TOKEN": "your-token-here"
       }
@@ -78,7 +78,7 @@ Or use with environment file:
 source /home/auctor/secrets.env
 
 # Start server
-python -m ct_dev_agent_orchestrator_mcp.server
+python -m ct_dev_agent_delegation_mcp.server
 ```
 
 ## Usage
@@ -87,7 +87,7 @@ python -m ct_dev_agent_orchestrator_mcp.server
 
 #### 1. Spawn Agent Session
 
-Create a new interactive agent session:
+Create a new interactive agent delegation:
 
 ```python
 spawn_agent(
@@ -238,11 +238,11 @@ get_agent_stats()
 ┌─────────────────────────────────────────────────────┐
 │ Main Agent (Claude via MCP Client)                 │
 └───────────────────┬─────────────────────────────────┘
-                    │ MCP Protocol (V2 Session Tools)
+                    │ MCP Protocol (V2 Delegation Tools)
 ┌───────────────────▼─────────────────────────────────┐
-│ ct_dev-agent_orchestrator-mcp (V2)                  │
+│ ct_dev-agent_delegation-mcp (V2)                  │
 │ ┌─────────────────────────────────────────────────┐ │
-│ │ SessionService (Session Lifecycle)              │ │
+│ │ DelegationService (Delegation Lifecycle)              │ │
 │ │ - spawn_agent, query_session                    │ │
 │ │ - send_to_agent, get_agent_output              │ │
 │ │ - stop_agent, list_active_sessions             │ │
@@ -264,14 +264,14 @@ get_agent_stats()
                     ├─────────────────┬──────────────────
                     ▼                 ▼                  
             ┌───────────────┐ ┌───────────────┐ 
-            │ Session 1     │ │ Session 2     │ 
+            │ Delegation 1     │ │ Delegation 2     │ 
             │ backend_spec  │ │ frontend_spec │ 
             │ Interactive   │ │ Interactive   │ 
             │ Port: 8000    │ │ Port: 8001    │ 
             └───────────────┘ └───────────────┘ 
 ```
 
-## Version 2 (Session-Based Architecture)
+## Version 2 (Delegation-Based Architecture)
 
 V2 represents a complete architectural shift from delegation-based to session-based agent orchestration:
 
@@ -280,7 +280,7 @@ V2 represents a complete architectural shift from delegation-based to session-ba
 - **Interactive Sessions**: Replaces fire-and-forget delegation with persistent sessions
 - **Follow-up Messaging**: Support for iterative work and refinement
 - **Real-time Tracking**: Query session status and output at any time
-- **Improved Concurrency**: Semaphore-based management (5 concurrent sessions)
+- **Improved Concurrency**: Semaphore-based management (5 concurrent delegations)
 - **Performance Optimizations**: 
   - Session creation: <1s
   - Message throughput: >5 msg/s
@@ -336,20 +336,20 @@ pytest tests/test_session_service.py -v -k performance
 ### Project Structure
 
 ```
-src/ct_dev_agent_orchestrator_mcp/
+src/ct_dev_agent_delegation_mcp/
 ├── __init__.py
 ├── server.py                    # MCP server main (V2 tools)
 ├── models/
 │   ├── __init__.py
-│   ├── session.py              # V2: Session data models
+│   ├── delegation.py              # V2: Delegation data models
 │   ├── agent.py                # Agent data models
-│   └── delegation.py           # Legacy (unused)
+│   └── # Removed - replaced by delegation.py
 ├── services/
 │   ├── __init__.py
-│   ├── session_service.py      # V2: Core session service
+│   ├── delegation_service.py      # V2: Core delegation service
 │   ├── agent_manager.py        # Agent lifecycle
 │   ├── opencode_service.py     # OpenCode integration
-│   └── delegation_service.py   # Legacy (unused)
+│   └── # Removed - consolidated into delegation_service.py
 ├── storage/
 │   ├── __init__.py
 │   └── database.py             # SQLite persistence

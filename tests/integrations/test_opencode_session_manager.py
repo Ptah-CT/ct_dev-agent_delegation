@@ -13,7 +13,7 @@ from src.integrations.opencode_session_manager import (
     OpencodeModel,
     OpencodeSession,
     OpencodeMessage,
-    SessionStatus
+    DelegationStatus
 )
 
 

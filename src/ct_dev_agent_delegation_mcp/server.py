@@ -10,9 +10,9 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-from .models.session import SpawnAgentRequest
+from .models.delegation import SpawnDelegationRequest
 from .services.agent_manager import AgentManager
-from .services.session_service import SessionService
+from .services.delegation_service import DelegationService
 from .services.opencode_service import OpenCodeService
 
 
@@ -38,10 +38,10 @@ except Exception as e:
 # Create services
 opencode_service = OpenCodeService(max_agents=5)
 agent_manager = AgentManager(opencode_service)
-session_service = SessionService()
+session_service = DelegationService()
 
 # Create MCP server
-app = Server("ct_dev-agent_orchestrator")
+app = Server("ct_dev-agent_delegation")
 
 
 @app.list_tools()
@@ -62,7 +62,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "role": {
                         "type": "string",
-                        "description": "Agent role/name from OpenCode (e.g., 'backend_specialist', 'plan', 'build'). Use list_opencode_agents to discover available agents."
+                        "description": "Agent role/name from OpenCode (e.g., 'backend_specialist', 'plan', 'build'). Use list_available_agent_roles to discover available agents."
                     },
                     "task_id": {
                         "type": "string",
@@ -213,16 +213,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="get_agent_capabilities",
-            description="Gets information about available agent roles and capabilities",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        ),
-        Tool(
-            name="list_opencode_agents",
+            name="list_available_agent_roles",
             description=(
                 "List all available agents from OpenCode server with their configurations. "
                 "Returns agent names, descriptions, modes, models, tools, and permissions. "
@@ -260,7 +251,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="list_agents",
+            name="list_running_delegations",
             description="List all active agent instances.",
             inputSchema={
                 "type": "object",
@@ -289,7 +280,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
     try:
         # NEW V2 SESSION-BASED TOOLS
         if name == "spawn_agent":
-            request = SpawnAgentRequest(**arguments)
+            request = SpawnDelegationRequest(**arguments)
             session_info = await session_service.spawn_agent(request)
             
             return [TextContent(
@@ -447,7 +438,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 )]
         
         
-        elif name == "list_opencode_agents":
+        elif name == "list_available_agent_roles":
             try:
                 force_refresh = arguments.get("force_refresh", False)
                 
@@ -542,7 +533,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                     }, indent=2)
                 )]
         
-        elif name == "list_agents":
+        elif name == "list_running_delegations":
             agents = await agent_manager.list_agents()
             
             if not agents:
@@ -604,7 +595,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
 
 async def main():
     """Run MCP server."""
-    logfire.info("Starting ct_dev-agent_orchestrator MCP server v2")
+    logfire.info("Starting ct_dev-agent_delegation MCP server v2")
     
     # Start agent manager
     await agent_manager.start()
@@ -620,7 +611,7 @@ async def main():
     finally:
         # Stop agent manager
         await agent_manager.stop()
-        logfire.info("ct_dev-agent_orchestrator MCP server v2 stopped")
+        logfire.info("ct_dev-agent_delegation MCP server v2 stopped")
 
 
 if __name__ == "__main__":

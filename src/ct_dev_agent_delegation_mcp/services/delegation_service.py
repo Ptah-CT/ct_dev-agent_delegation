@@ -26,11 +26,11 @@ try:
 except Exception:
     logfire.configure(send_to_logfire=False)
 
-from ..models.session import (
-    SpawnAgentRequest,
-    SessionInfo,
+from ..models.delegation import (
+    SpawnDelegationRequest,
+    DelegationInfo,
     AgentOutput,
-    SessionStatus
+    DelegationStatus
 )
 from ..models.agent import AgentRole
 from .session_manager import OpenCodeSessionManager
@@ -40,7 +40,7 @@ from .opencode_service import OpenCodeService
 from ..utils.scope_deviation import ScopeDeviationDetector
 
 
-class SessionService:
+class DelegationService:
     """
     High-level Session-based Agent Management Service.
     
@@ -54,7 +54,7 @@ class SessionService:
     """
     
     def __init__(self, opencode_service: Optional[OpenCodeService] = None):
-        """Initialize SessionService with required dependencies."""
+        """Initialize DelegationService with required dependencies."""
         self.api_client = OpenCodeAPIClient()
         self.session_manager = OpenCodeSessionManager(self.api_client)
         
@@ -70,9 +70,9 @@ class SessionService:
         # Session registry: session_id -> server_url mapping
         self._sessions: Dict[str, str] = {}
         
-        logfire.info("SessionService initialized", extra={"service": "session_service"})
+        logfire.info("DelegationService initialized", extra={"service": "session_service"})
     
-    async def spawn_agent(self, request: SpawnAgentRequest) -> SessionInfo:
+    async def spawn_agent(self, request: SpawnDelegationRequest) -> DelegationInfo:
         """
         Create agent via AgentManager and establish OpenCode session.
         
@@ -81,11 +81,11 @@ class SessionService:
         2. Creates session via SessionManager with the agent's server
         
         Args:
-            request: SpawnAgentRequest with role, task_id, instructions, context, model,
+            request: SpawnDelegationRequest with role, task_id, instructions, context, model,
                     original_task, cap_origin, delegation_context
             
         Returns:
-            SessionInfo: Created session with session_id for tracking
+            DelegationInfo: Created session with session_id for tracking
             
         Raises:
             Exception: If agent creation or session creation fails
@@ -123,11 +123,11 @@ class SessionService:
                     }
                 )
                 
-                # Convert dict to SessionInfo
-                session_info = SessionInfo(
+                # Convert dict to DelegationInfo
+                session_info = DelegationInfo(
                     session_id=session_info_dict["session_id"],
                     agent_role=request.role,
-                    status=SessionStatus.RUNNING,
+                    status=DelegationStatus.RUNNING,
                     started_at=session_info_dict["created_at"],
                     server_url=server_url,
                     progress={},
@@ -162,10 +162,10 @@ class SessionService:
                 logfire.error("Session spawn timeout", extra={"error": str(e)})
                 # Generate a fallback session_id for error response
                 fallback_session_id = str(uuid.uuid4())
-                return SessionInfo(
+                return DelegationInfo(
                     session_id=fallback_session_id,
                     agent_role=request.role,
-                    status=SessionStatus.FAILED,
+                    status=DelegationStatus.FAILED,
                     started_at=datetime.utcnow().isoformat(),
                     server_url="",
                     progress={},
@@ -264,7 +264,7 @@ class SessionService:
                 "error": str(e)
             })
 
-    async def query_session(self, session_id: str) -> SessionInfo:
+    async def query_session(self, session_id: str) -> DelegationInfo:
         """
         Get current status of a session.
         
@@ -274,7 +274,7 @@ class SessionService:
             session_id: Unique session UUID
             
         Returns:
-            SessionInfo: Current session state
+            DelegationInfo: Current session state
             
         Raises:
             Exception: If session not found or query fails
@@ -327,10 +327,10 @@ class SessionService:
                 # Get scope deviation if detected
                 scope_deviation = local_session_info.get("scope_deviation")
 
-                session_info = SessionInfo(
+                session_info = DelegationInfo(
                     session_id=session_id,
                     agent_role=local_metadata.get("agent_role", "unknown"),
-                    status=SessionStatus.RUNNING,
+                    status=DelegationStatus.RUNNING,
                     started_at=local_session_info.get("created_at", ""),
                     server_url=server_url,
                     progress=local_metadata.get("progress", {}),
@@ -429,18 +429,18 @@ class SessionService:
                 
                 server_url = self._sessions[session_id]
                 
-                # Map OpenCode fields to SessionInfo fields
-                session_info = SessionInfo(
+                # Map OpenCode fields to DelegationInfo fields
+                session_info = DelegationInfo(
                     session_id=session_data.get("id", session_id),
                     agent_role=session_data.get("metadata", {}).get("agent_role", "unknown"),
-                    status=SessionStatus.RUNNING,
+                    status=DelegationStatus.RUNNING,
                     started_at=session_data.get("created", ""),
                     server_url=server_url,
                     progress=session_data.get("metadata", {}).get("progress", {}),
                     messages=[]
                 )
                 
-                if session_info.status not in (SessionStatus.COMPLETED, SessionStatus.FAILED):
+                if session_info.status not in (DelegationStatus.COMPLETED, DelegationStatus.FAILED):
                     raise ValueError(f"Session {session_id} not completed (status: {session_info.status})")
                 
                 # Get messages to extract final output
@@ -533,12 +533,12 @@ class SessionService:
                 })
                 raise
     
-    async def list_active_sessions(self) -> List[SessionInfo]:
+    async def list_active_sessions(self) -> List[DelegationInfo]:
         """
         List all active sessions.
         
         Returns:
-            List[SessionInfo]: All currently active sessions
+            List[DelegationInfo]: All currently active sessions
             
         Raises:
             Exception: If session listing fails
@@ -573,7 +573,7 @@ class SessionService:
                         active_sessions.append(session)
                         seen_ids.add(session_id)
 
-                # Convert to SessionInfo objects using local metadata
+                # Convert to DelegationInfo objects using local metadata
                 session_infos = []
                 for session_dict in active_sessions:
                     try:
@@ -585,10 +585,10 @@ class SessionService:
                         # Get scope deviation if detected
                         scope_deviation = local_session_info.get("scope_deviation")
 
-                        session_info = SessionInfo(
+                        session_info = DelegationInfo(
                             session_id=session_id,
                             agent_role=local_metadata.get("agent_role", "unknown"),
-                            status=SessionStatus.RUNNING,
+                            status=DelegationStatus.RUNNING,
                             started_at=local_session_info.get("created_at", ""),
                             server_url=self._sessions[session_id],
                             progress=local_metadata.get("progress", {}),
@@ -618,7 +618,7 @@ class SessionService:
     async def cleanup(self) -> None:
         """Clean up resources and shutdown service."""
         try:
-            logfire.info("Cleaning up SessionService")
+            logfire.info("Cleaning up DelegationService")
             
             # Stop AgentManager and underlying agents first
             try:
@@ -634,8 +634,8 @@ class SessionService:
             # Cleanup API client
             await self.api_client.cleanup()
             
-            logfire.info("SessionService cleanup completed")
+            logfire.info("DelegationService cleanup completed")
             
         except Exception as e:
-            logfire.error("SessionService cleanup failed", extra={"error": str(e)})
+            logfire.error("DelegationService cleanup failed", extra={"error": str(e)})
             raise

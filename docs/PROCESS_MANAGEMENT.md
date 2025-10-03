@@ -93,7 +93,7 @@ Kontrolliertes Herunterfahren von Prozessen:
 ### ProcessConfig
 
 ```python
-from ct_dev_agent_orchestrator_mcp.services.process_manager import ProcessConfig
+from ct_dev_agent_delegation_mcp.services.process_manager import ProcessConfig
 
 config = ProcessConfig(
     # Restart Policy

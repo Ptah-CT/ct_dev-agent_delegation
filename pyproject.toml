@@ -1,7 +1,7 @@
 [project]
-name = "ct_dev-agent_orchestrator-mcp"
+name = "ct_dev-agent_delegation-mcp"
 version = "0.1.0"
-description = "MCP Server for ct_dev-agents orchestration with opencode integration"
+description = "MCP Server for ct_dev-agent delegation with opencode integration"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

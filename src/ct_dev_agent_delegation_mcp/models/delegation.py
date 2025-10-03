@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
 
-class SessionStatus(str, Enum):
+class DelegationStatus(str, Enum):
     """Session lifecycle status."""
     STARTING = "starting"
     RUNNING = "running"
@@ -14,7 +14,7 @@ class SessionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class SpawnAgentRequest(BaseModel):
+class SpawnDelegationRequest(BaseModel):
     """Request to spawn a new agent session."""
     
     role: str = Field(..., description="Agent role (e.g., 'backend_specialist')")
@@ -75,12 +75,12 @@ class SpawnAgentRequest(BaseModel):
         }
 
 
-class SessionInfo(BaseModel):
+class DelegationInfo(BaseModel):
     """Information about an active agent session."""
     
     session_id: str = Field(..., description="Unique session UUID")
     agent_role: str = Field(..., description="Agent role")
-    status: SessionStatus = Field(..., description="Current session status")
+    status: DelegationStatus = Field(..., description="Current session status")
     started_at: str = Field(..., description="ISO 8601 start timestamp")
     progress: Dict[str, Any] = Field(default_factory=dict, description="Progress information")
     messages: List[Dict] = Field(default_factory=list, description="Session messages")
@@ -109,7 +109,7 @@ class AgentOutput(BaseModel):
     """Output from a completed agent session."""
     
     session_id: str = Field(..., description="Session UUID")
-    status: SessionStatus = Field(..., description="Final session status")
+    status: DelegationStatus = Field(..., description="Final session status")
     artifacts: Dict[str, Any] = Field(default_factory=dict, description="Generated artifacts")
     summary: str = Field(..., description="Session summary")
     duration_seconds: float = Field(..., description="Session duration in seconds")

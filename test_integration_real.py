@@ -20,8 +20,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from ct_dev_agent_orchestrator_mcp.models.session import SpawnAgentRequest
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
 
 
 async def test_real_agent_lifecycle():
@@ -31,13 +31,13 @@ async def test_real_agent_lifecycle():
     print("INTEGRATION TEST: Real Agent Instance")
     print("=" * 60)
     
-    service = SessionService()
+    service = DelegationService()
     session_id = None
     
     try:
         # Step 1: Spawn agent
         print("\n[1/5] Spawning backend_specialist agent...")
-        request = SpawnAgentRequest(
+        request = SpawnDelegationRequest(
             role="backend_specialist",
             task_id="test-task-001",
             instructions="You are a test agent. Please respond with 'Hello from backend specialist!'",
@@ -121,7 +121,7 @@ async def test_concurrent_agents():
     print("CONCURRENT AGENTS TEST")
     print("=" * 60)
     
-    service = SessionService()
+    service = DelegationService()
     session_ids = []
     
     try:
@@ -129,7 +129,7 @@ async def test_concurrent_agents():
         print("\n[1/3] Spawning 2 agents concurrently...")
         
         requests = [
-            SpawnAgentRequest(
+            SpawnDelegationRequest(
                 role="backend_specialist",
                 task_id=f"test-task-{i}",
                 instructions=f"Test agent {i}",

@@ -2,6 +2,73 @@
 
 ## [Unreleased]
 
+### BREAKING CHANGES - Project & Terminology Refactoring
+- **Project Renamed**: `ct_dev-agent_orchestrator-mcp` → `ct_dev-agent_delegation-mcp`
+  - Package name: `ct_dev_agent_orchestrator_mcp` → `ct_dev_agent_delegation_mcp`
+  - All imports updated across 25+ Python files
+  - Philosophy alignment: "Delegation" better represents X^∞ Cap-Transfer principles than "Session"
+
+- **Model Renames** (Session → Delegation terminology):
+  - `SessionStatus` → `DelegationStatus`
+  - `SpawnAgentRequest` → `SpawnDelegationRequest`
+  - `SessionInfo` → `DelegationInfo`
+  - `models/session.py` → `models/delegation.py`
+
+- **Service Renames**:
+  - `SessionService` → `DelegationService`
+  - `services/session_service.py` → `services/delegation_service.py`
+
+- **MCP Tool Renames** (Breaking API Changes):
+  - `list_agents` → `list_running_delegations` (lists active delegation instances)
+  - `list_opencode_agents` → `list_available_agent_roles` (lists available agent roles from OpenCode)
+
+- **Removed Duplicate Tools**:
+  - Removed duplicate `get_agent_capabilities` tool definition (conflicted with OpenCode integration)
+
+### Changed
+- Architecture terminology: "session-based" → "delegation-based" throughout documentation
+- Task integration reference: `ct_dev-task_orchestrator` → `ct_dev-task_mgmnt`
+- All test files updated with new import paths and class names
+- README.md completely rewritten with delegation-focused terminology
+- File structure documentation updated to reflect new naming
+
+### Migration Guide
+**For MCP Clients using this server:**
+
+1. **Update tool calls**:
+   ```python
+   # Old (deprecated):
+   list_agents()  # Lists running instances
+   list_opencode_agents()  # Lists available roles
+   
+   # New (current):
+   list_running_delegations()  # Lists running instances  
+   list_available_agent_roles()  # Lists available roles
+   ```
+
+2. **Update package imports** (if importing directly):
+   ```python
+   # Old:
+   from ct_dev_agent_orchestrator_mcp.models.session import SessionInfo
+   from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
+   
+   # New:
+   from ct_dev_agent_delegation_mcp.models.delegation import DelegationInfo
+   from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+   ```
+
+3. **No functional changes**: All delegation logic remains identical, only naming changed
+
+### Fixed
+- Syntax error after duplicate tool removal (missing comma in tool definitions)
+- Import paths in all test files updated to new package structure
+
+### Technical Details
+- Database schema already correct (uses "delegations" table)
+- All 25+ Python files updated systematically
+- Complete test suite migration completed
+- Zero functional regressions - pure renaming refactor
+
 ### Added - Phase 3: OpenCode Integration Service Layer & MCP Tools
 - **OpenCode Dynamic Agent/Model Discovery**: New MCP tools for runtime agent and model discovery
   - `list_opencode_agents`: Lists all available OpenCode agents with configurations

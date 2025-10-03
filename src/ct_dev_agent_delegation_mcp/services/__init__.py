@@ -2,10 +2,10 @@
 
 from .agent_manager import AgentManager
 from .opencode_service import OpenCodeService
-from .session_service import SessionService
+from .delegation_service import DelegationService
 
 __all__ = [
     "AgentManager",
     "OpenCodeService",
-    "SessionService",
+    "DelegationService",
 ]

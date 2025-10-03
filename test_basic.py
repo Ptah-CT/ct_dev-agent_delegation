@@ -2,11 +2,11 @@
 """Quick test script for ct_dev-agent_orchestrator-mcp."""
 
 import asyncio
-from ct_dev_agent_orchestrator_mcp.services.opencode_service import OpenCodeService
-from ct_dev_agent_orchestrator_mcp.services.agent_manager import AgentManager
-from ct_dev_agent_orchestrator_mcp.services.delegation_service import DelegationService
-from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
-from ct_dev_agent_orchestrator_mcp.models.delegation import DelegationRequest
+from ct_dev_agent_delegation_mcp.services.opencode_service import OpenCodeService
+from ct_dev_agent_delegation_mcp.services.agent_manager import AgentManager
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.models.agent import AgentRole
+from ct_dev_agent_delegation_mcp.models.delegation import DelegationRequest
 
 
 async def test_agent_creation():

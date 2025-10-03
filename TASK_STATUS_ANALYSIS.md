@@ -58,7 +58,7 @@ Systematische Analyse aller offenen Tasks zur Priorisierung und strukturierten U
   from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
   
   # RICHTIG:
-  from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
+  from ct_dev_agent_delegation_mcp.services.session_service import SessionService
   ```
 - [ ] Tests ausführen: `pytest tests/ -v`
 - [ ] Coverage prüfen: `pytest tests/ --cov`

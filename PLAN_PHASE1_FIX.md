@@ -89,7 +89,7 @@ Abschluss der Phase 1 Fixes für OpenCode API-Integration durch:
 
 **Code-Skelett** (opencode_api_client.py, nach send_message erfolg):
 ```python
-from ct_dev_agent_orchestrator_mcp.utils.scope_deviation import ScopeDeviationDetector
+from ct_dev_agent_delegation_mcp.utils.scope_deviation import ScopeDeviationDetector
 
 # Nach erfolgreichem send_message:
 messages = await self.get_messages(session_id)
@@ -173,9 +173,9 @@ return deviation  # Wird in SessionInfo integriert
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from ct_dev_agent_orchestrator_mcp.utils.scope_deviation import ScopeDeviationDetector
-from ct_dev_agent_orchestrator_mcp.models.session import SessionInfo
-from ct_dev_agent_orchestrator_mcp.services.opencode_api_client import OpenCodeAPIClient
+from ct_dev_agent_delegation_mcp.utils.scope_deviation import ScopeDeviationDetector
+from ct_dev_agent_delegation_mcp.models.session import SessionInfo
+from ct_dev_agent_delegation_mcp.services.opencode_api_client import OpenCodeAPIClient
 
 
 class TestScopeDeviationDetector:

@@ -15,13 +15,13 @@ from pathlib import Path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from ct_dev_agent_orchestrator_mcp.server import call_tool
+from ct_dev_agent_delegation_mcp.server import call_tool
 
 
 @pytest.mark.asyncio
 async def test_list_opencode_agents_success():
     """Test list_opencode_agents tool returns agents from OpenCode."""
-    from ct_dev_agent_orchestrator_mcp.opencode_client import OpenCodeAgent
+    from ct_dev_agent_delegation_mcp.opencode_client import OpenCodeAgent
     
     mock_agents = [
         OpenCodeAgent(
@@ -46,7 +46,7 @@ async def test_list_opencode_agents_success():
         )
     ]
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_agents = AsyncMock(return_value=mock_agents)
         mock_service.process_manager.opencode_client = mock_client
@@ -62,7 +62,7 @@ async def test_list_opencode_agents_success():
 @pytest.mark.asyncio
 async def test_list_opencode_agents_force_refresh():
     """Test list_opencode_agents with force_refresh parameter."""
-    from ct_dev_agent_orchestrator_mcp.opencode_client import OpenCodeAgent
+    from ct_dev_agent_delegation_mcp.opencode_client import OpenCodeAgent
     
     mock_agents = [
         OpenCodeAgent(
@@ -76,7 +76,7 @@ async def test_list_opencode_agents_force_refresh():
         )
     ]
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_agents = AsyncMock(return_value=mock_agents)
         mock_service.process_manager.opencode_client = mock_client
@@ -93,7 +93,7 @@ async def test_list_opencode_agents_force_refresh():
 @pytest.mark.asyncio
 async def test_list_opencode_agents_error():
     """Test list_opencode_agents error handling."""
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_agents = AsyncMock(side_effect=Exception("Connection failed"))
         mock_service.process_manager.opencode_client = mock_client
@@ -109,7 +109,7 @@ async def test_list_opencode_agents_error():
 @pytest.mark.asyncio
 async def test_list_opencode_models_success():
     """Test list_opencode_models tool returns models from OpenCode."""
-    from ct_dev_agent_orchestrator_mcp.opencode_client import OpenCodeModel
+    from ct_dev_agent_delegation_mcp.opencode_client import OpenCodeModel
     
     mock_models = [
         OpenCodeModel(
@@ -144,7 +144,7 @@ async def test_list_opencode_models_success():
         "openai": [mock_models[1]]
     }
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_providers = AsyncMock(return_value=mock_providers)
         mock_service.process_manager.opencode_client = mock_client
@@ -160,7 +160,7 @@ async def test_list_opencode_models_success():
 @pytest.mark.asyncio
 async def test_list_opencode_models_force_refresh():
     """Test list_opencode_models with force_refresh parameter."""
-    from ct_dev_agent_orchestrator_mcp.opencode_client import OpenCodeModel
+    from ct_dev_agent_delegation_mcp.opencode_client import OpenCodeModel
     
     mock_model = OpenCodeModel(
         id="test-model",
@@ -177,7 +177,7 @@ async def test_list_opencode_models_force_refresh():
     
     mock_providers = {"test": [mock_model]}
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_providers = AsyncMock(return_value=mock_providers)
         mock_service.process_manager.opencode_client = mock_client
@@ -193,7 +193,7 @@ async def test_list_opencode_models_force_refresh():
 @pytest.mark.asyncio
 async def test_list_opencode_models_error():
     """Test list_opencode_models error handling."""
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_providers = AsyncMock(side_effect=Exception("Failed to fetch models"))
         mock_service.process_manager.opencode_client = mock_client
@@ -222,7 +222,7 @@ async def test_get_agent_capabilities_opencode():
         }
     ]
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_service.api_client.fetch_available_agents = AsyncMock(return_value=mock_agents)
         
         result = await call_tool("get_agent_capabilities", {})
@@ -240,7 +240,7 @@ async def test_spawn_agent_with_opencode_role():
     # This test verifies that spawn_agent now accepts any string role
     # instead of being restricted to AgentRole enum
     
-    # Create mock SessionInfo object
+    # Create mock DelegationInfo object
     mock_session_info = MagicMock()
     mock_session_info.session_id = "session-123"
     mock_session_info.agent_role = "custom_opencode_agent"
@@ -251,7 +251,7 @@ async def test_spawn_agent_with_opencode_role():
         "delegated_cap": "Test Delegated Cap"
     }
     
-    with patch("ct_dev_agent_orchestrator_mcp.server.session_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.session_service") as mock_service:
         mock_service.spawn_agent = AsyncMock(return_value=mock_session_info)
         
         # Use a custom OpenCode agent role (not in original AgentRole enum)
@@ -295,7 +295,7 @@ async def test_spawn_agent_with_opencode_role():
 @pytest.mark.asyncio
 async def test_list_opencode_agents_empty():
     """Test list_opencode_agents with no agents available."""
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_agents = AsyncMock(return_value=[])
         mock_service.process_manager.opencode_client = mock_client
@@ -310,7 +310,7 @@ async def test_list_opencode_agents_empty():
 @pytest.mark.asyncio
 async def test_list_opencode_models_empty():
     """Test list_opencode_models with no models available."""
-    with patch("ct_dev_agent_orchestrator_mcp.server.opencode_service") as mock_service:
+    with patch("ct_dev_agent_delegation_mcp.server.opencode_service") as mock_service:
         mock_client = MagicMock()
         mock_client.list_providers = AsyncMock(return_value={})
         mock_service.process_manager.opencode_client = mock_client

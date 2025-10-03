@@ -12,9 +12,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from ct_dev_agent_orchestrator_mcp.services.opencode_api_client import OpenCodeAPIClient
-from ct_dev_agent_orchestrator_mcp.services.session_manager import OpenCodeSessionManager
-from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+from ct_dev_agent_delegation_mcp.services.opencode_api_client import OpenCodeAPIClient
+from ct_dev_agent_delegation_mcp.services.session_manager import OpenCodeSessionManager
+from ct_dev_agent_delegation_mcp.models.agent import Agent, AgentRole, AgentStatus
 
 
 async def test_adapted_services():

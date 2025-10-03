@@ -22,15 +22,15 @@ from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import httpx
 from mcp.types import TextContent
 
-from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from ct_dev_agent_orchestrator_mcp.models.session import (
-    SpawnAgentRequest,
-    SessionInfo,
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.models.delegation import (
+    SpawnDelegationRequest,
+    DelegationInfo,
     AgentOutput,
-    SessionStatus
+    DelegationStatus
 )
-from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
-from ct_dev_agent_orchestrator_mcp.server import call_tool
+from ct_dev_agent_delegation_mcp.models.agent import AgentRole
+from ct_dev_agent_delegation_mcp.server import call_tool
 
 
 class MockOpenCodeAPI:
@@ -42,7 +42,7 @@ class MockOpenCodeAPI:
         self.fail_operations = set()
         self.delay_operations = {}
         
-    async def create_session(self, session_id: str, agent_role: str, instructions: str, context: Dict, model: str) -> SessionInfo:
+    async def create_session(self, session_id: str, agent_role: str, instructions: str, context: Dict, model: str) -> DelegationInfo:
         """Mock session creation."""
         if "create_session" in self.fail_operations:
             raise httpx.HTTPError("API connection failed")
@@ -53,7 +53,7 @@ class MockOpenCodeAPI:
         session_data = {
             "session_id": session_id,
             "agent_role": agent_role,
-            "status": SessionStatus.STARTING,
+            "status": DelegationStatus.STARTING,
             "started_at": datetime.now().isoformat(),
             "server_url": f"http://localhost:800{len(self.sessions) + 1}",
             "progress": {},
@@ -65,11 +65,11 @@ class MockOpenCodeAPI:
         
         # Simulate transition to RUNNING after brief delay
         await asyncio.sleep(0.1)
-        session_data["status"] = SessionStatus.RUNNING
+        session_data["status"] = DelegationStatus.RUNNING
         
-        return SessionInfo(**session_data)
+        return DelegationInfo(**session_data)
     
-    async def get_session(self, session_id: str) -> SessionInfo:
+    async def get_session(self, session_id: str) -> DelegationInfo:
         """Mock session retrieval."""
         if "get_session" in self.fail_operations:
             raise httpx.HTTPError("Session not found")
@@ -80,7 +80,7 @@ class MockOpenCodeAPI:
         session_data = self.sessions[session_id].copy()
         session_data["messages"] = self.messages[session_id].copy()
         
-        return SessionInfo(**session_data)
+        return DelegationInfo(**session_data)
     
     async def send_message(self, session_id: str, message: str) -> bool:
         """Mock message sending."""
@@ -111,7 +111,7 @@ class MockOpenCodeAPI:
         if session_id not in self.sessions:
             return False
             
-        self.sessions[session_id]["status"] = SessionStatus.CANCELLED
+        self.sessions[session_id]["status"] = DelegationStatus.CANCELLED
         return True
     
     async def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
@@ -120,9 +120,9 @@ class MockOpenCodeAPI:
             return []
         return self.messages[session_id]
     
-    async def list_sessions(self) -> List[SessionInfo]:
+    async def list_sessions(self) -> List[DelegationInfo]:
         """Mock session listing."""
-        return [SessionInfo(**data) for data in self.sessions.values()]
+        return [DelegationInfo(**data) for data in self.sessions.values()]
     
     def set_failure_mode(self, operation: str, should_fail: bool = True):
         """Set specific operations to fail for testing."""
@@ -144,8 +144,8 @@ def mock_api():
 
 @pytest.fixture
 async def integration_session_service(mock_api):
-    """Create SessionService with mocked OpenCode API for integration testing."""
-    with patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager:
+    """Create DelegationService with mocked OpenCode API for integration testing."""
+    with patch('ct_dev_agent_delegation_mcp.services.delegation_service.OpenCodeSessionManager') as mock_session_manager:
         # Configure the mock to use our mock API
         mock_session_manager.return_value.create_session = mock_api.create_session
         mock_session_manager.return_value.get_session = mock_api.get_session
@@ -154,7 +154,7 @@ async def integration_session_service(mock_api):
         mock_session_manager.return_value.get_messages = mock_api.get_messages
         mock_session_manager.return_value.list_sessions = mock_api.list_sessions
         
-        service = SessionService()
+        service = DelegationService()
         service.session_manager = mock_session_manager.return_value
         
         yield service
@@ -162,8 +162,8 @@ async def integration_session_service(mock_api):
 
 @pytest.fixture
 def sample_spawn_request():
-    """Sample SpawnAgentRequest for integration testing."""
-    return SpawnAgentRequest(
+    """Sample SpawnDelegationRequest for integration testing."""
+    return SpawnDelegationRequest(
         role=AgentRole.BACKEND_SPECIALIST,
         task_id=str(uuid.uuid4()),
         instructions="Implement OAuth2 authentication with JWT tokens",
@@ -187,7 +187,7 @@ class TestEndToEndSessionLifecycle:
         # 1. Spawn agent
         session_info = await service.spawn_agent(sample_spawn_request)
         assert session_info.session_id is not None
-        assert session_info.status == SessionStatus.RUNNING
+        assert session_info.status == DelegationStatus.RUNNING
         assert session_info.server_url is not None
         
         session_id = session_info.session_id
@@ -195,17 +195,17 @@ class TestEndToEndSessionLifecycle:
         # 2. Query session status
         queried_session = await service.query_session(session_id)
         assert queried_session.session_id == session_id
-        assert queried_session.status == SessionStatus.RUNNING
+        assert queried_session.status == DelegationStatus.RUNNING
         
         # 3. Send message to agent
         message_sent = await service.send_to_agent(session_id, "Implement user registration endpoint")
         assert message_sent is True
         
         # 4. Get agent output (first mark session as completed)
-        mock_api.sessions[session_id]["status"] = SessionStatus.COMPLETED
+        mock_api.sessions[session_id]["status"] = DelegationStatus.COMPLETED
         agent_output = await service.get_agent_output(session_id)
         assert agent_output is not None
-        assert agent_output.status == SessionStatus.COMPLETED
+        assert agent_output.status == DelegationStatus.COMPLETED
         assert agent_output.duration_seconds > 0
         
         # 5. Stop agent
@@ -214,7 +214,7 @@ class TestEndToEndSessionLifecycle:
         
         # Verify session is stopped
         final_session = await service.query_session(session_id)
-        assert final_session.status == SessionStatus.CANCELLED
+        assert final_session.status == DelegationStatus.CANCELLED
     
     @pytest.mark.asyncio
     async def test_multiple_message_exchange(self, integration_session_service, sample_spawn_request, mock_api):
@@ -241,9 +241,9 @@ class TestEndToEndSessionLifecycle:
             await asyncio.sleep(0.1)
         
         # Get final output (mark session as completed first)
-        mock_api.sessions[session_id]["status"] = SessionStatus.COMPLETED
+        mock_api.sessions[session_id]["status"] = DelegationStatus.COMPLETED
         output = await service.get_agent_output(session_id)
-        assert output.status == SessionStatus.COMPLETED
+        assert output.status == DelegationStatus.COMPLETED
         
         # Stop session
         await service.stop_agent(session_id)
@@ -264,7 +264,7 @@ class TestEndToEndSessionLifecycle:
         sessions = []
         
         for role, instructions in agent_configs:
-            request = SpawnAgentRequest(
+            request = SpawnDelegationRequest(
                 role=role,
                 task_id=str(uuid.uuid4()),
                 instructions=instructions,
@@ -282,10 +282,10 @@ class TestEndToEndSessionLifecycle:
             assert sent is True
             
             # Mark session as completed and get output
-            mock_api.sessions[session_id]["status"] = SessionStatus.COMPLETED
+            mock_api.sessions[session_id]["status"] = DelegationStatus.COMPLETED
             output = await service.get_agent_output(session_id)
             assert output is not None
-            assert output.status == SessionStatus.COMPLETED
+            assert output.status == DelegationStatus.COMPLETED
         
         # Clean up all sessions
         for session_id in sessions:
@@ -299,12 +299,12 @@ class TestMCPToolsIntegration:
     @pytest.mark.asyncio
     async def test_spawn_agent_mcp_tool(self, mock_api):
         """Test spawn_agent MCP tool integration."""
-        with patch('ct_dev_agent_orchestrator_mcp.server.session_service') as mock_service:
+        with patch('ct_dev_agent_delegation_mcp.server.session_service') as mock_service:
             # Setup mock session service
-            mock_session_info = SessionInfo(
+            mock_session_info = DelegationInfo(
                 session_id="test-session-123",
                 agent_role=AgentRole.BACKEND_SPECIALIST.value,
-                status=SessionStatus.RUNNING,
+                status=DelegationStatus.RUNNING,
                 started_at=datetime.now().isoformat(),
                 server_url="http://localhost:8001",
                 progress={},
@@ -332,12 +332,12 @@ class TestMCPToolsIntegration:
         """Test complete workflow through MCP tools."""
         session_id = None
         
-        with patch('ct_dev_agent_orchestrator_mcp.server.session_service') as mock_service:
+        with patch('ct_dev_agent_delegation_mcp.server.session_service') as mock_service:
             # Mock all session service methods
-            mock_session_info = SessionInfo(
+            mock_session_info = DelegationInfo(
                 session_id="integration-test-session",
                 agent_role=AgentRole.BACKEND_SPECIALIST.value,
-                status=SessionStatus.RUNNING,
+                status=DelegationStatus.RUNNING,
                 started_at=datetime.now().isoformat(),
                 server_url="http://localhost:8001",
                 progress={},
@@ -349,7 +349,7 @@ class TestMCPToolsIntegration:
             mock_service.send_to_agent = AsyncMock(return_value=True)
             mock_service.get_agent_output = AsyncMock(return_value=AgentOutput(
                 session_id="integration-test-session",
-                status=SessionStatus.COMPLETED,
+                status=DelegationStatus.COMPLETED,
                 artifacts={},
                 summary="Session completed successfully",
                 duration_seconds=0.15,
@@ -411,7 +411,7 @@ class TestConcurrencyAndPerformance:
         
         # Create multiple spawn requests
         requests = [
-            SpawnAgentRequest(
+            SpawnDelegationRequest(
                 role=AgentRole.BACKEND_SPECIALIST,
                 task_id=str(uuid.uuid4()),
                 instructions=f"Task {i}",
@@ -429,8 +429,8 @@ class TestConcurrencyAndPerformance:
         
         # Verify all succeeded
         assert len(results) == 8
-        assert all(isinstance(result, SessionInfo) for result in results)
-        assert all(result.status == SessionStatus.RUNNING for result in results)
+        assert all(isinstance(result, DelegationInfo) for result in results)
+        assert all(result.status == DelegationStatus.RUNNING for result in results)
         
         # Should take at least 0.4 seconds (2 batches of 5 with 0.2s delay each)
         # but less than 1.6 seconds (8 sequential operations)
@@ -449,7 +449,7 @@ class TestConcurrencyAndPerformance:
         # Create multiple sessions
         sessions = []
         for i in range(3):
-            request = SpawnAgentRequest(
+            request = SpawnDelegationRequest(
                 role=AgentRole.BACKEND_SPECIALIST,
                 task_id=str(uuid.uuid4()),
                 instructions=f"Session {i} task",
@@ -471,14 +471,14 @@ class TestConcurrencyAndPerformance:
         
         # Mark sessions as completed and get outputs concurrently
         for session_id in sessions:
-            mock_api.sessions[session_id]["status"] = SessionStatus.COMPLETED
+            mock_api.sessions[session_id]["status"] = DelegationStatus.COMPLETED
             
         output_tasks = [service.get_agent_output(session_id) for session_id in sessions]
         outputs = await asyncio.gather(*output_tasks)
         
         assert len(outputs) == 3
         assert all(output is not None for output in outputs)
-        assert all(output.status == SessionStatus.COMPLETED for output in outputs)
+        assert all(output.status == DelegationStatus.COMPLETED for output in outputs)
         
         # Clean up
         for session_id in sessions:
@@ -590,7 +590,7 @@ class TestErrorScenarios:
         max_sessions = 10  # Test with more than semaphore limit
         
         requests = [
-            SpawnAgentRequest(
+            SpawnDelegationRequest(
                 role=AgentRole.BACKEND_SPECIALIST,
                 task_id=str(uuid.uuid4()),
                 instructions=f"Resource test {i}",
@@ -630,7 +630,7 @@ class TestPerformanceMetrics:
         service = integration_session_service
         
         # Measure single session creation
-        request = SpawnAgentRequest(
+        request = SpawnDelegationRequest(
             role=AgentRole.BACKEND_SPECIALIST,
             task_id=str(uuid.uuid4()),
             instructions="Performance test",
@@ -669,7 +669,7 @@ class TestPerformanceMetrics:
         # Setup sessions
         sessions = []
         for i in range(num_sessions):
-            request = SpawnAgentRequest(
+            request = SpawnDelegationRequest(
                 role=AgentRole.BACKEND_SPECIALIST,
                 task_id=str(uuid.uuid4()),
                 instructions=f"Throughput test session {i}",

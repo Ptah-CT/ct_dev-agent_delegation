@@ -2,15 +2,15 @@
 """Test complete spawn -> stop agent flow."""
 
 import asyncio
-from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from src.ct_dev_agent_orchestrator_mcp.models.session import SpawnAgentRequest
+from src.ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from src.ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
 
 async def main():
-    session_service = SessionService()
+    session_service = DelegationService()
 
     try:
         print("Step 1: Spawning agent session...")
-        request = SpawnAgentRequest(
+        request = SpawnDelegationRequest(
             role="backend_specialist",
             task_id="test-task-stop-flow",
             instructions="Test task for stop flow",

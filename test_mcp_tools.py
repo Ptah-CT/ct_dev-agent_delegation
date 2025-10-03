@@ -8,11 +8,11 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
-from ct_dev_agent_orchestrator_mcp.models.session import SpawnAgentRequest
-from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from ct_dev_agent_orchestrator_mcp.services.agent_manager import AgentManager
-from ct_dev_agent_orchestrator_mcp.services.opencode_service import OpenCodeService
+from ct_dev_agent_delegation_mcp.models.agent import AgentRole
+from ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.services.agent_manager import AgentManager
+from ct_dev_agent_delegation_mcp.services.opencode_service import OpenCodeService
 
 
 class MCPToolsTester:
@@ -22,7 +22,7 @@ class MCPToolsTester:
         """Initialize test harness."""
         self.opencode_service = OpenCodeService(max_agents=3)
         self.agent_manager = AgentManager(self.opencode_service)
-        self.session_service = SessionService()
+        self.session_service = DelegationService()
         self.test_session_id = None
         
     async def setup(self):
@@ -131,7 +131,7 @@ class MCPToolsTester:
         
         try:
             # Use string value instead of enum to match the model definition
-            request = SpawnAgentRequest(
+            request = SpawnDelegationRequest(
                 role="backend_specialist",  # Changed from AgentRole.BACKEND_SPECIALIST
                 task_id="test-task-001",
                 instructions="Test instructions: Please analyze a simple Python function.",
