@@ -1,115 +1,105 @@
-#!/usr/bin/env python3
-"""Quick test script for ct_dev-agent_orchestrator-mcp."""
+"""Smoke tests for ct_dev-agent_delegation-mcp service layer."""
 
 import asyncio
-from ct_dev_agent_orchestrator_mcp.services.opencode_service import OpenCodeService
-from ct_dev_agent_orchestrator_mcp.services.agent_manager import AgentManager
-from ct_dev_agent_orchestrator_mcp.services.delegation_service import DelegationService
-from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
-from ct_dev_agent_orchestrator_mcp.models.delegation import DelegationRequest
+from datetime import datetime, timezone
+from pathlib import Path
+
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.services.agent_manager import AgentManager
+from ct_dev_agent_delegation_mcp.services.opencode_service import OpenCodeService
+from ct_dev_agent_delegation_mcp.models.agent import AgentRole
+from ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
+
+PROJECT_DIR = Path(__file__).parent
 
 
-async def test_agent_creation():
-    """Test creating an agent."""
-    print("🧪 Testing Agent Creation...")
-    
-    opencode_service = OpenCodeService(base_port=8100, max_agents=3)
+def build_spawn_request(role: str) -> SpawnDelegationRequest:
+    """Return a SpawnDelegationRequest with baseline responsibility context."""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    return SpawnDelegationRequest(
+        role=role,
+        task_id="test-task-001",
+        instructions="Please confirm receipt and report working directory contents.",
+        project_directory=str(PROJECT_DIR),
+        expected_output="Acknowledgement plus directory listing",
+        context={"purpose": "smoke-test"},
+        model="claude-sonnet-4",
+        original_task={
+            "task_id": "test-origin-001",
+            "title": "Delegation smoke test",
+            "description": "Verify spawn_agent and follow-up interactions in a controlled environment.",
+            "requester": "Auctor",
+            "requested_at": timestamp
+        },
+        cap_origin={
+            "ultimate_authority": "Auctor",
+            "original_scope": "Delegation platform maintenance",
+            "granted_at": timestamp,
+            "grant_context": "Routine infrastructure validation"
+        },
+        delegation_context={
+            "delegator": "Project Manager",
+            "delegator_cap": "Delegation oversight (Auctor, {})".format(timestamp),
+            "delegated_to": role,
+            "delegated_cap": "Execute smoke test instructions",
+            "constraints": ["Use Serena tools", "Report deviations immediately"],
+            "phantom_level": "Delegation/Cap",
+            "delegated_at": timestamp
+        }
+    )
+
+
+async def smoke_test_agent_manager() -> None:
+    """Start an agent, probe health, and tear down."""
+    print("[agent-manager] starting smoke test")
+    opencode_service = OpenCodeService(max_agents=1)
     agent_manager = AgentManager(opencode_service)
-    
+
+    await agent_manager.start()
     try:
-        await agent_manager.start()
-        print("✓ Agent manager started")
-        
-        # Create an agent
         agent = await agent_manager.create_agent(AgentRole.GENERIC_ENGINEER)
-        print(f"✓ Agent created: {agent.agent_id}")
-        print(f"  Role: {agent.role}")
-        print(f"  Status: {agent.status}")
-        print(f"  Port: {agent.port}")
-        print(f"  PID: {agent.pid}")
-        
-        # Check health
-        is_healthy = await opencode_service.check_health(agent)
-        print(f"  Health: {'✓ Healthy' if is_healthy else '✗ Unhealthy'}")
-        
-        # List agents
-        agents = await agent_manager.list_agents()
-        print(f"\n✓ Total agents: {len(agents)}")
-        
-        # Stop agent
+        print(f"[agent-manager] agent created: {agent.agent_id} port={agent.port}")
+
+        healthy = await opencode_service.check_health(agent)
+        print(f"[agent-manager] health check result: {healthy}")
+
         await agent_manager.remove_agent(agent.agent_id)
-        print(f"✓ Agent removed: {agent.agent_id}")
-        
+        print("[agent-manager] agent removed")
     finally:
         await agent_manager.stop()
-        print("✓ Agent manager stopped")
+        print("[agent-manager] manager stopped")
 
 
-async def test_delegation_flow():
-    """Test delegation flow."""
-    print("\n🧪 Testing Delegation Flow...")
-    
-    opencode_service = OpenCodeService(base_port=8100, max_agents=3)
-    agent_manager = AgentManager(opencode_service)
-    delegation_service = DelegationService(agent_manager, opencode_service)
-    
-    try:
-        await agent_manager.start()
-        
-        # Create delegation request
-        request = DelegationRequest(
-            task_id="test-task-123",
-            agent_role="generic_engineer",
-            instructions="This is a test delegation",
-            context={"test": True},
-            timeout_seconds=30
-        )
-        
-        # Delegate work
-        response = await delegation_service.delegate(request)
-        print(f"✓ Work delegated")
-        print(f"  Delegation ID: {response.delegation_id}")
-        print(f"  Agent ID: {response.agent_id}")
-        print(f"  Status: {response.status}")
-        
-        # Check status
-        status = await delegation_service.get_status(response.delegation_id)
-        print(f"\n✓ Delegation status retrieved")
-        print(f"  Status: {status['status']}")
-        print(f"  Created: {status['created_at']}")
-        
-        # Wait a bit
-        await asyncio.sleep(2)
-        
-        # Check status again
-        status = await delegation_service.get_status(response.delegation_id)
-        print(f"\n✓ Updated status: {status['status']}")
-        
-    finally:
-        await agent_manager.stop()
+async def smoke_test_delegation_flow() -> None:
+    """Run spawn/query/stop flow through DelegationService."""
+    print("[delegation] starting delegation flow smoke test")
+    service = DelegationService()
+    session_info = await service.spawn_agent(build_spawn_request("backend_specialist"))
+    session_id = session_info.session_id
+    print(f"[delegation] session spawned: {session_id} status={session_info.status}")
+
+    await asyncio.sleep(2)
+    status = await service.query_session(session_id)
+    print(f"[delegation] session status: {status.status} messages={len(status.messages)}")
+
+    await service.send_to_agent(session_id, "Confirm working directory and files present.")
+    print("[delegation] follow-up message sent")
+
+    await asyncio.sleep(2)
+    output = await service.get_agent_output(session_id)
+    print(f"[delegation] output status={output.status} duration={output.duration_seconds:.2f}s")
+
+    await service.stop_agent(session_id)
+    print("[delegation] session stopped")
+
+    await service.cleanup()
+    print("[delegation] cleanup complete")
 
 
-async def main():
-    """Run tests."""
-    print("=" * 60)
-    print("ct_dev-agent_orchestrator-mcp Test Suite")
-    print("=" * 60)
-    
-    try:
-        # Test 1: Agent Creation
-        await test_agent_creation()
-        
-        # Test 2: Delegation Flow (commented out as it requires actual opencode)
-        # await test_delegation_flow()
-        
-        print("\n" + "=" * 60)
-        print("✓ All tests passed!")
-        print("=" * 60)
-        
-    except Exception as e:
-        print(f"\n✗ Test failed: {e}")
-        import traceback
-        traceback.print_exc()
+async def main() -> None:
+    """Execute smoke tests sequentially."""
+    await smoke_test_agent_manager()
+    await smoke_test_delegation_flow()
 
 
 if __name__ == "__main__":

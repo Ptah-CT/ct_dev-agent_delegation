@@ -1,5 +1,5 @@
 """
-Comprehensive unit tests for SessionService.
+Comprehensive unit tests for DelegationService.
 
 Tests all 6 core methods with mocked dependencies to ensure
 proper functionality and error handling without external dependencies.
@@ -14,23 +14,23 @@ import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from ct_dev_agent_orchestrator_mcp.models.session import (
-    SpawnAgentRequest,
-    SessionInfo, 
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.models.delegation import (
+    SpawnDelegationRequest,
+    DelegationInfo, 
     AgentOutput,
-    SessionStatus
+    DelegationStatus
 )
 
 
 @pytest.fixture
 def session_service():
-    """Create SessionService instance with mocked dependencies."""
-    with patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeSessionManager') as mock_session_manager, \
-         patch('ct_dev_agent_orchestrator_mcp.services.session_service.OpenCodeAPIClient') as mock_api_client, \
-         patch('ct_dev_agent_orchestrator_mcp.services.session_service.AgentManager') as mock_agent_manager:
+    """Create DelegationService instance with mocked dependencies."""
+    with patch('ct_dev_agent_delegation_mcp.services.delegation_service.OpenCodeSessionManager') as mock_session_manager, \
+         patch('ct_dev_agent_delegation_mcp.services.delegation_service.OpenCodeAPIClient') as mock_api_client, \
+         patch('ct_dev_agent_delegation_mcp.services.delegation_service.AgentManager') as mock_agent_manager:
         
-        service = SessionService()
+        service = DelegationService()
         service.session_manager = AsyncMock()
         service.api_client = AsyncMock()
         service.agent_manager = AsyncMock()
@@ -40,8 +40,8 @@ def session_service():
 
 @pytest.fixture
 def sample_spawn_request():
-    """Sample SpawnAgentRequest for testing."""
-    return SpawnAgentRequest(
+    """Sample SpawnDelegationRequest for testing."""
+    return SpawnDelegationRequest(
         role="backend_specialist",
         task_id="550e8400-e29b-41d4-a716-446655440000",
         instructions="Implement OAuth2 authentication endpoints",
@@ -52,11 +52,11 @@ def sample_spawn_request():
 
 @pytest.fixture
 def sample_session_info():
-    """Sample SessionInfo for testing."""
-    return SessionInfo(
+    """Sample DelegationInfo for testing."""
+    return DelegationInfo(
         session_id="test-session-id",
         agent_role="backend_specialist",
-        status=SessionStatus.RUNNING,
+        status=DelegationStatus.RUNNING,
         started_at="2025-09-30T10:00:00Z",
         server_url="http://localhost:8000",
         progress={"step": "initializing"},
@@ -69,7 +69,7 @@ def sample_agent_output():
     """Sample AgentOutput for testing."""
     return AgentOutput(
         session_id="test-session-id",
-        status=SessionStatus.COMPLETED,
+        status=DelegationStatus.COMPLETED,
         artifacts={"code": "implementation.py", "tests": "test_implementation.py"},
         summary="OAuth2 authentication implemented successfully",
         duration_seconds=1800.0,
@@ -84,7 +84,7 @@ class TestSpawnAgent:
     async def test_spawn_agent_success(self, session_service, sample_spawn_request, sample_session_info):
         """Test successful agent spawning."""
         # Setup mocks - create mock agent with port
-        from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        from ct_dev_agent_delegation_mcp.models.agent import Agent, AgentRole, AgentStatus
         mock_agent = Agent(
             agent_id="test-agent-id",
             role=AgentRole.BACKEND_SPECIALIST,
@@ -94,7 +94,7 @@ class TestSpawnAgent:
         )
         session_service.agent_manager.create_agent.return_value = mock_agent
         
-        # create_session should return a dict, not SessionInfo
+        # create_session should return a dict, not DelegationInfo
         session_dict = {
             "session_id": sample_session_info.session_id,
             "created_at": sample_session_info.started_at,
@@ -106,9 +106,9 @@ class TestSpawnAgent:
         result = await session_service.spawn_agent(sample_spawn_request)
         
         # Verify
-        assert isinstance(result, SessionInfo)
+        assert isinstance(result, DelegationInfo)
         assert result.agent_role == "backend_specialist"
-        assert result.status == SessionStatus.RUNNING
+        assert result.status == DelegationStatus.RUNNING
         assert result.server_url == "http://localhost:8000"
         
         # Verify session manager was called correctly
@@ -127,8 +127,8 @@ class TestSpawnAgent:
         result = await session_service.spawn_agent(sample_spawn_request)
         
         # Verify failure handling
-        assert isinstance(result, SessionInfo)
-        assert result.status == SessionStatus.FAILED
+        assert isinstance(result, DelegationInfo)
+        assert result.status == DelegationStatus.FAILED
         assert result.agent_role == "backend_specialist"
         assert result.server_url == ""
     
@@ -149,7 +149,7 @@ class TestQuerySession:
     @pytest.mark.asyncio
     async def test_query_session_success(self, session_service, sample_session_info):
         """Test successful session query."""
-        # Setup mocks - get_session should return a dict, not SessionInfo
+        # Setup mocks - get_session should return a dict, not DelegationInfo
         session_dict = {
             "session_id": sample_session_info.session_id,
             "agent_role": sample_session_info.agent_role,
@@ -165,9 +165,9 @@ class TestQuerySession:
         result = await session_service.query_session("test-session-id")
         
         # Verify
-        assert isinstance(result, SessionInfo)
+        assert isinstance(result, DelegationInfo)
         assert result.session_id == "test-session-id"
-        assert result.status == SessionStatus.RUNNING
+        assert result.status == DelegationStatus.RUNNING
         
         # Verify session manager was called
         session_service.session_manager.get_session.assert_called_once_with("test-session-id")
@@ -236,7 +236,7 @@ class TestGetAgentOutput:
         completed_session_dict = {
             "session_id": "test-session-id",
             "agent_role": "backend_specialist",
-            "status": SessionStatus.COMPLETED,
+            "status": DelegationStatus.COMPLETED,
             "started_at": "2025-09-30T10:00:00Z",
             "server_url": "http://localhost:8000",
             "progress": {"artifacts": {"code": "implementation.py"}},
@@ -252,7 +252,7 @@ class TestGetAgentOutput:
         
         # Execute with proper datetime mocking
         from datetime import timezone
-        with patch('ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+        with patch('ct_dev_agent_delegation_mcp.services.delegation_service.datetime') as mock_datetime_class:
             # Mock datetime.fromisoformat
             started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
             mock_datetime_class.fromisoformat.return_value = started_dt
@@ -266,7 +266,7 @@ class TestGetAgentOutput:
         # Verify
         assert isinstance(result, AgentOutput)
         assert result.session_id == "test-session-id"
-        assert result.status == SessionStatus.COMPLETED
+        assert result.status == DelegationStatus.COMPLETED
         assert result.artifacts == {"code": "implementation.py"}
         assert "Task completed successfully" in result.summary
         assert result.duration_seconds == 1800.0
@@ -274,7 +274,7 @@ class TestGetAgentOutput:
     @pytest.mark.asyncio
     async def test_get_agent_output_not_completed(self, session_service, sample_session_info):
         """Test agent output retrieval for non-completed session."""
-        # Setup mocks - convert SessionInfo to dict
+        # Setup mocks - convert DelegationInfo to dict
         session_dict = {
             "session_id": sample_session_info.session_id,
             "agent_role": sample_session_info.agent_role,
@@ -297,7 +297,7 @@ class TestGetAgentOutput:
         failed_session_dict = {
             "session_id": "test-session-id",
             "agent_role": "backend_specialist",
-            "status": SessionStatus.FAILED,
+            "status": DelegationStatus.FAILED,
             "started_at": "2025-09-30T10:00:00Z",
             "server_url": "http://localhost:8000",
             "progress": {},
@@ -309,7 +309,7 @@ class TestGetAgentOutput:
         
         # Execute with proper datetime mocking
         from datetime import timezone
-        with patch('ct_dev_agent_orchestrator_mcp.services.session_service.datetime') as mock_datetime_class:
+        with patch('ct_dev_agent_delegation_mcp.services.delegation_service.datetime') as mock_datetime_class:
             # Mock datetime.fromisoformat
             started_dt = datetime(2025, 9, 30, 10, 0, 0, tzinfo=timezone.utc)
             mock_datetime_class.fromisoformat.return_value = started_dt
@@ -321,7 +321,7 @@ class TestGetAgentOutput:
             result = await session_service.get_agent_output("test-session-id")
         
         # Verify
-        assert result.status == SessionStatus.FAILED
+        assert result.status == DelegationStatus.FAILED
         assert result.summary == "Session completed"
 
 
@@ -374,28 +374,28 @@ class TestListActiveSessions:
         """Test successful active sessions listing."""
         # Setup mocks
         all_sessions = [
-            SessionInfo(
+            DelegationInfo(
                 session_id="session-1",
                 agent_role="backend_specialist",
-                status=SessionStatus.RUNNING,
+                status=DelegationStatus.RUNNING,
                 started_at="2025-09-30T10:00:00Z",
                 server_url="http://localhost:8000",
                 progress={},
                 messages=[]
             ),
-            SessionInfo(
+            DelegationInfo(
                 session_id="session-2",
                 agent_role="frontend_specialist", 
-                status=SessionStatus.COMPLETED,
+                status=DelegationStatus.COMPLETED,
                 started_at="2025-09-30T09:00:00Z",
                 server_url="http://localhost:8001",
                 progress={},
                 messages=[]
             ),
-            SessionInfo(
+            DelegationInfo(
                 session_id="session-3",
                 agent_role="security_expert",
-                status=SessionStatus.STARTING,
+                status=DelegationStatus.STARTING,
                 started_at="2025-09-30T10:30:00Z",
                 server_url="http://localhost:8002",
                 progress={},
@@ -410,7 +410,7 @@ class TestListActiveSessions:
         
         # Verify
         assert len(result) == 2  # Only RUNNING and STARTING sessions
-        assert all(session.status in [SessionStatus.RUNNING, SessionStatus.STARTING] for session in result)
+        assert all(session.status in [DelegationStatus.RUNNING, DelegationStatus.STARTING] for session in result)
         assert any(session.session_id == "session-1" for session in result)
         assert any(session.session_id == "session-3" for session in result)
         assert not any(session.session_id == "session-2" for session in result)  # COMPLETED should be filtered out
@@ -473,7 +473,7 @@ class TestConcurrency:
     async def test_semaphore_limiting(self, session_service, sample_spawn_request, sample_session_info):
         """Test that semaphore limits concurrent operations."""
         # Setup mocks - create mock agent
-        from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+        from ct_dev_agent_delegation_mcp.models.agent import Agent, AgentRole, AgentStatus
         mock_agent = Agent(
             agent_id="test-agent-id",
             role=AgentRole.BACKEND_SPECIALIST,
@@ -506,7 +506,7 @@ class TestConcurrency:
         
         # Verify
         assert len(results) == 10
-        assert all(isinstance(result, SessionInfo) for result in results)
+        assert all(isinstance(result, DelegationInfo) for result in results)
         
         # With semaphore limit of 5, execution should take at least 0.2 seconds
         # (2 batches of 5 concurrent operations, each taking 0.1 seconds)

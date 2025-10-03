@@ -4,7 +4,7 @@ import asyncio
 import pytest
 from pathlib import Path
 
-from ct_dev_agent_orchestrator_mcp.services.process_manager import (
+from ct_dev_agent_delegation_mcp.services.process_manager import (
     ProcessManager,
     ProcessConfig,
     ProcessState,

@@ -93,19 +93,6 @@ class OpenCodeService:
                 command=" ".join(cmd)
             )
             
-            # Configure professional process management
-            process_config = ProcessConfig(
-                auto_restart=True,
-                max_restart_attempts=3,
-                restart_delay_base=2.0,
-                restart_delay_max=30.0,
-                startup_timeout=30.0,
-                shutdown_timeout=10.0,
-                capture_output=True,
-                max_memory_mb=1024.0,  # 1GB limit per agent
-                max_cpu_percent=80.0    # 80% CPU limit
-            )
-            
             # Storage for port detection
             port_container = {"port": None}
             
@@ -120,15 +107,27 @@ class OpenCodeService:
                             f"OpenCode chose port {port_container['port']} for agent {agent.agent_id}"
                         )
             
+            # Configure professional process management WITH callback
+            # CRITICAL: Callback must be in config to avoid race condition
+            process_config = ProcessConfig(
+                auto_restart=True,
+                max_restart_attempts=3,
+                restart_delay_base=2.0,
+                restart_delay_max=30.0,
+                startup_timeout=30.0,
+                shutdown_timeout=10.0,
+                capture_output=True,
+                max_memory_mb=1024.0,  # 1GB limit per agent
+                max_cpu_percent=80.0,   # 80% CPU limit
+                on_output=on_output_callback  # Set callback BEFORE process starts
+            )
+            
             # Create managed process through ProcessManager
             managed_process = await self.process_manager.create_process(
                 process_id=agent.agent_id,
                 command=cmd,
                 config=process_config
             )
-            
-            # Set output callback
-            managed_process.on_output = on_output_callback
             
             # Wait for port detection
             max_wait = 5  # seconds

@@ -8,7 +8,7 @@
 - **Opportunitäts-Ethik**: Prüfe, ob eine Entscheidung andere notwendige Entscheidungen blockiert oder verzögert.  
 - **Minimalismus**: Keine Emojis oder dekorativen Symbole verwenden (inkl. „Haken“, „X“, „Raketen“ etc.). Design ist streng zweckmäßig.  
 
----
+
 
 ## 2. Struktur für Dokumente & Antworten
 Jedes Dokument oder jede Response folgt einem klaren Muster, das universell anwendbar ist:
@@ -37,7 +37,7 @@ Jedes Dokument oder jede Response folgt einem klaren Muster, das universell anwe
 6. **🜄 Aufgaben / To-Do**  
    - Konkrete nächste Schritte in Markdown-Checklisten.  
 
----
+
 
 ## 3. Formale Regeln
 - **Titel & Einstieg**: Immer mit Ziel beginnen, ggf. mit 🜄 eingerahmt.  
@@ -54,7 +54,7 @@ Jedes Dokument oder jede Response folgt einem klaren Muster, das universell anwe
   - Nachtmodus: dunkles Orange (#ff6600 auf Hintergrund #333)  
   - Hintergründe: Dunkelgrau (#333333)  
 
----
+
 
 ## 4. Anwendung auf verschiedene Dokumente
 - **Issues** → Kombination aus technischer Klarheit + systemischer Verantwortung  
@@ -63,10 +63,10 @@ Jedes Dokument oder jede Response folgt einem klaren Muster, das universell anwe
 - **Philosophische Texte** → Wirkung im System, Kontext zu bestehenden Prinzipien, Verantwortung des Autors, ethische Reflexion  
 - **Responses (z. B. Chat / Mail)** → Ziel (Antwortkern), Kontext (Bezug), Verantwortung (Autor/Cap), Prüfung (Validität, Ethik), ggf. Risiken, nächster Schritt  
 
----
+
 
 ## 5. X^∞ Coding Grundsätze
-- Alle Tätigkeiten sind kontinuierlich in **ct-task_mgmnt** zu dokumentieren und organisieren. Vor Aufnahme einer Tätigkeit ist zu prüfen, ob ein korespondierender Task existiert. Dieser ist zu nutzen oder ein neuer zu erstellen.   
+- Alle Tätigkeiten sind kontinuierlich in **ct_dev-task_orchestrator** zu dokumentieren und organisieren. Vor Aufnahme einer Tätigkeit ist zu prüfen, ob ein korespondierender Task existiert. Dieser ist zu nutzen oder ein neuer zu erstellen.   
 - **Serena Tools** sind verpflichtend für alle Dateioperationen (suchen, lesen, schreiben, ändern) zu nutzen.  
 - **Ptah** ist der Knowledge Manager für den Dev Bereich. Es ist Dein erweitertes Gehirn. Jede Konversation, jede Erkenntnis, jeder Gedanke sind mit ihm zu teilen. Hier laufen alle Fäden zusammen und alle Recherchen haben hier ihren Ursprung.  Er ist VOR AUFNAHME DER TÄTIGKEIT und NACH JEDEM SCHWISCHENSCHRITT DERAILLIERT ZU INFORMIEREN.
 
@@ -90,7 +90,7 @@ change-reviewer.md          frontend-react-expert.md   runtime-debugger.md      
  1.7 Delegation: Peer Review durch Philosophical Reviewer durchführen lassen.
  1.8 Delegation: Implementierungsplan mit Meilensteinen und Arbeitspaketen durch den Planer erstellen lassen.
  1.9 In md dokumentieren.
- 1.10 Task Management im ct_dev-task_mgmnt durchführen. Tasks im ct_dev-task_mgmnt erstellen.
+ 1.10 Task Management im ct_dev-task_orchestrator durchführen. Tasks im ct_dev-task_orchestrator erstellen.
  1.11 **Freigabe durch Auctor.**
 2. **Umsetzung** Team Mode: EDIT
  2.1 Delegation: Branch anlegen lassen und in die Branch wechseln.
@@ -115,7 +115,7 @@ change-reviewer.md          frontend-react-expert.md   runtime-debugger.md      
 - Projektsprachen sind **Deutsch** und **Englisch**.  
 
 - Fail Fast And Loud! 
-- Keine Rpckwörtskompatibilität!
+- Keine Rückwärtskompatibilität!
 
 - KISS!
 - Kein Over engeneering!

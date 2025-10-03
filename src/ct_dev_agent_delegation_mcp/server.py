@@ -4,15 +4,15 @@ import asyncio
 import os
 import sys
 from typing import Dict, Any
+import json
 import logfire
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-from .models.agent import AgentRole
-from .models.session import SpawnAgentRequest
+from .models.delegation import SpawnDelegationRequest
 from .services.agent_manager import AgentManager
-from .services.session_service import SessionService
+from .services.delegation_service import DelegationService
 from .services.opencode_service import OpenCodeService
 
 
@@ -38,10 +38,10 @@ except Exception as e:
 # Create services
 opencode_service = OpenCodeService(max_agents=5)
 agent_manager = AgentManager(opencode_service)
-session_service = SessionService()
+session_service = DelegationService()
 
 # Create MCP server
-app = Server("ct_dev-agent_orchestrator")
+app = Server("ct_dev-agent_delegation")
 
 
 @app.list_tools()
@@ -62,8 +62,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "role": {
                         "type": "string",
-                        "enum": [role.value for role in AgentRole],
-                        "description": "Agent role (e.g., 'backend_specialist')"
+                        "description": "Agent role/name from OpenCode (e.g., 'backend_specialist', 'plan', 'build'). Use list_available_agent_roles to discover available agents."
                     },
                     "task_id": {
                         "type": "string",
@@ -170,6 +169,18 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_agent_capabilities",
+            description=(
+                "Gets information about available agent roles and capabilities from OpenCode Server. "
+                "Returns list of agents with their names, descriptions, and configurations."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
             name="stop_agent",
             description="Stops an agent session and cleans up resources",
             inputSchema={
@@ -202,19 +213,45 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="get_agent_capabilities",
-            description="Gets information about available agent roles and capabilities",
+            name="list_available_agent_roles",
+            description=(
+                "List all available agents from OpenCode server with their configurations. "
+                "Returns agent names, descriptions, modes, models, tools, and permissions. "
+                "Use this before spawn_agent to discover available agent roles."
+            ),
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "force_refresh": {
+                        "type": "boolean",
+                        "description": "Force refresh of cached data",
+                        "default": False
+                    }
+                },
                 "required": []
             }
         ),
-
-
-
         Tool(
-            name="list_agents",
+            name="list_opencode_models",
+            description=(
+                "List all available models from OpenCode server with their providers and capabilities. "
+                "Returns model names, provider IDs, costs, limits, and features (reasoning, tool_call, etc). "
+                "Use this to select appropriate models for spawn_agent."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "force_refresh": {
+                        "type": "boolean",
+                        "description": "Force refresh of cached data",
+                        "default": False
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="list_running_delegations",
             description="List all active agent instances.",
             inputSchema={
                 "type": "object",
@@ -243,7 +280,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
     try:
         # NEW V2 SESSION-BASED TOOLS
         if name == "spawn_agent":
-            request = SpawnAgentRequest(**arguments)
+            request = SpawnDelegationRequest(**arguments)
             session_info = await session_service.spawn_agent(request)
             
             return [TextContent(
@@ -361,18 +398,142 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
                 )]
         
         elif name == "get_agent_capabilities":
-            capabilities = []
-            for role in AgentRole:
-                capabilities.append(f"• {role.value}")
-            
-            return [TextContent(
-                type="text",
-                text="Available Agent Roles:\n\n" + "\n".join(capabilities) + 
-                     f"\n\nTotal: {len(AgentRole)} specialized roles available"
-            )]
+            try:
+                # Default OpenCode server URL
+                server_url = os.getenv("OPENCODE_SERVER_URL", "http://localhost:8000")
+                
+                # Fetch agents via API
+                agents = await opencode_service.api_client.fetch_available_agents(server_url)
+                
+                # Format for response
+                capabilities = {
+                    "agents": [
+                        {
+                            "name": agent.get("name"),
+                            "description": agent.get("description", "No description available"),
+                            "mode": agent.get("mode", "unknown"),
+                            "builtIn": agent.get("builtIn", False),
+                            "tools": list(agent.get("tools", {}).keys()) if agent.get("tools") else []
+                        }
+                        for agent in agents
+                    ],
+                    "count": len(agents),
+                    "server_url": server_url
+                }
+                
+                return [TextContent(
+                    type="text",
+                    text=json.dumps(capabilities, indent=2)
+                )]
+                
+            except Exception as e:
+                logfire.error("Error fetching agent capabilities", error=str(e))
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": str(e),
+                        "message": "Failed to fetch agent capabilities from OpenCode Server"
+                    }, indent=2)
+                )]
         
         
-        elif name == "list_agents":
+        elif name == "list_available_agent_roles":
+            try:
+                force_refresh = arguments.get("force_refresh", False)
+                
+                # Use OpenCodeClient to fetch agents
+                client = opencode_service.process_manager.opencode_client
+                agents = await client.list_agents(force_refresh=force_refresh)
+                
+                # Format for response
+                agents_info = {
+                    "agents": [
+                        {
+                            "name": agent.name,
+                            "description": agent.description,
+                            "mode": agent.mode,
+                            "built_in": agent.built_in,
+                            "model": agent.model,
+                            "temperature": agent.temperature,
+                            "top_p": agent.top_p,
+                            "tools": list(agent.tools.keys()) if agent.tools else [],
+                            "permission": agent.permission
+                        }
+                        for agent in agents
+                    ],
+                    "count": len(agents),
+                    "cached": not force_refresh
+                }
+                
+                return [TextContent(
+                    type="text",
+                    text=json.dumps(agents_info, indent=2)
+                )]
+                
+            except Exception as e:
+                logfire.error("Error listing OpenCode agents", error=str(e))
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": str(e),
+                        "message": "Failed to list agents from OpenCode Server"
+                    }, indent=2)
+                )]
+        
+        elif name == "list_opencode_models":
+            try:
+                force_refresh = arguments.get("force_refresh", False)
+                
+                # Use OpenCodeClient to fetch models
+                client = opencode_service.process_manager.opencode_client
+                providers_dict = await client.list_providers(force_refresh=force_refresh)
+                
+                # Flatten providers dictionary into list
+                models_info = {
+                    "models": [],
+                    "providers": []
+                }
+                
+                for provider_id, models in providers_dict.items():
+                    models_info["providers"].append(provider_id)
+                    for model in models:
+                        models_info["models"].append({
+                            "id": model.id,
+                            "name": model.name,
+                            "provider_id": model.provider_id,
+                            "release_date": model.release_date,
+                            "attachment": model.attachment,
+                            "reasoning": model.reasoning,
+                            "temperature": model.temperature,
+                            "tool_call": model.tool_call,
+                            "experimental": model.experimental,
+                            "cost": model.cost,
+                            "limit": model.limit
+                        })
+                
+                models_info["count"] = len(models_info["models"])
+                models_info["provider_count"] = len(models_info["providers"])
+                models_info["cached"] = not force_refresh
+                
+                return [TextContent(
+                    type="text",
+                    text=json.dumps(models_info, indent=2)
+                )]
+                
+            except Exception as e:
+                logfire.error("Error listing OpenCode models", error=str(e))
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": str(e),
+                        "message": "Failed to list models from OpenCode Server"
+                    }, indent=2)
+                )]
+        
+        elif name == "list_running_delegations":
             agents = await agent_manager.list_agents()
             
             if not agents:
@@ -434,7 +595,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
 
 async def main():
     """Run MCP server."""
-    logfire.info("Starting ct_dev-agent_orchestrator MCP server v2")
+    logfire.info("Starting ct_dev-agent_delegation MCP server v2")
     
     # Start agent manager
     await agent_manager.start()
@@ -450,7 +611,7 @@ async def main():
     finally:
         # Stop agent manager
         await agent_manager.stop()
-        logfire.info("ct_dev-agent_orchestrator MCP server v2 stopped")
+        logfire.info("ct_dev-agent_delegation MCP server v2 stopped")
 
 
 if __name__ == "__main__":

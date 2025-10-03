@@ -5,16 +5,16 @@ from pathlib import Path
 
 def test_imports():
     """Test that core modules can be imported."""
-    from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
-    from ct_dev_agent_orchestrator_mcp.models.delegation import (
+    from ct_dev_agent_delegation_mcp.models.agent import Agent, AgentRole, AgentStatus
+    from ct_dev_agent_delegation_mcp.models.delegation import (
         DelegationRequest,
         DelegationResponse,
         DelegationResult,
         DelegationStatus
     )
-    from ct_dev_agent_orchestrator_mcp.services.agent_manager import AgentManager
-    from ct_dev_agent_orchestrator_mcp.services.delegation_service import DelegationService
-    from ct_dev_agent_orchestrator_mcp.storage.database import Database
+    from ct_dev_agent_delegation_mcp.services.agent_manager import AgentManager
+    from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+    from ct_dev_agent_delegation_mcp.storage.database import Database
     
     assert Agent is not None
     assert AgentManager is not None
@@ -22,7 +22,7 @@ def test_imports():
 
 def test_agent_roles():
     """Test agent roles are defined."""
-    from ct_dev_agent_orchestrator_mcp.models.agent import AgentRole
+    from ct_dev_agent_delegation_mcp.models.agent import AgentRole
     
     # Check some key roles exist
     assert hasattr(AgentRole, 'BACKEND_SPECIALIST')
@@ -36,7 +36,7 @@ def test_agent_roles():
 
 def test_database_creation():
     """Test database can be created."""
-    from ct_dev_agent_orchestrator_mcp.storage.database import Database
+    from ct_dev_agent_delegation_mcp.storage.database import Database
     import tempfile
     
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -58,7 +58,7 @@ def test_database_creation():
 @pytest.mark.asyncio
 async def test_agent_model():
     """Test agent model creation."""
-    from ct_dev_agent_orchestrator_mcp.models.agent import Agent, AgentRole, AgentStatus
+    from ct_dev_agent_delegation_mcp.models.agent import Agent, AgentRole, AgentStatus
     from datetime import datetime, timezone
     
     agent = Agent(
@@ -76,7 +76,7 @@ async def test_agent_model():
 @pytest.mark.asyncio  
 async def test_delegation_request():
     """Test delegation request model."""
-    from ct_dev_agent_orchestrator_mcp.models.delegation import DelegationRequest
+    from ct_dev_agent_delegation_mcp.models.delegation import DelegationRequest
     
     request = DelegationRequest(
         task_id="task-123",

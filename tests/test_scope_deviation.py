@@ -13,7 +13,7 @@ Coverage Target: >80% for scope_deviation.py
 
 import pytest
 from datetime import datetime
-from ct_dev_agent_orchestrator_mcp.utils.scope_deviation import ScopeDeviationDetector
+from ct_dev_agent_delegation_mcp.utils.scope_deviation import ScopeDeviationDetector
 
 
 class TestScopeDeviationDetector:

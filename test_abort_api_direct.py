@@ -1,50 +1,74 @@
-#!/usr/bin/env python3
-"""Test OpenCode abort API directly to check response."""
+"""Probe the OpenCode abort endpoint against a live delegation session."""
 
 import asyncio
 import httpx
-from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
-from src.ct_dev_agent_orchestrator_mcp.models.session import SpawnAgentRequest
+from datetime import datetime, timezone
 
-async def main():
-    session_service = SessionService()
+from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
+from ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
+
+
+def build_request() -> SpawnDelegationRequest:
+    now = datetime.now(timezone.utc).isoformat()
+    return SpawnDelegationRequest(
+        role="backend_specialist",
+        task_id="abort-test",
+        instructions="Wait idle for abort verification.",
+        project_directory="/tmp",
+        expected_output="Abort acknowledgement",
+        context={},
+        model="claude-sonnet-4",
+        original_task={
+            "task_id": "abort-origin",
+            "title": "Abort API test",
+            "description": "Validate abort endpoint behaviour for delegation sessions.",
+            "requester": "Auctor",
+            "requested_at": now
+        },
+        cap_origin={
+            "ultimate_authority": "Auctor",
+            "original_scope": "Delegation infrastructure validation",
+            "granted_at": now,
+            "grant_context": "Abort API smoke test"
+        },
+        delegation_context={
+            "delegator": "Project Manager",
+            "delegator_cap": f"Abort validation authority (Auctor, {now})",
+            "delegated_to": "backend_specialist",
+            "delegated_cap": "Respond to abort request",
+            "constraints": ["Do not perform extra actions"],
+            "phantom_level": "Delegation/Cap",
+            "delegated_at": now
+        }
+    )
+
+
+async def main() -> None:
+    service = DelegationService()
 
     try:
-        print("Creating session...")
-        request = SpawnAgentRequest(
-            role="backend_specialist",
-            task_id="test-abort-api",
-            instructions="Test abort API",
-            context={},
-            model="claude-sonnet-4"
-        )
-
-        session_info = await session_service.spawn_agent(request)
-        print(f"Session created: {session_info.session_id}")
+        print("Creating delegation session for abort test")
+        request = build_request()
+        session_info = await service.spawn_agent(request)
+        session_id = session_info.session_id
+        print(f"Session created: {session_id}")
         print(f"Server URL: {session_info.server_url}")
 
         await asyncio.sleep(2)
 
-        # Test abort API directly
-        print(f"\nCalling POST {session_info.server_url}/session/{session_info.session_id}/abort")
+        url = f"{session_info.server_url}/session/{session_id}/abort"
+        print(f"Invoking abort endpoint: {url}")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{session_info.server_url}/session/{session_info.session_id}/abort"
-            )
+            response = await client.post(url)
+            print(f"Status: {response.status_code}")
+            print(f"Headers: {dict(response.headers)}")
+            print(f"Body: {response.text}")
 
-            print(f"Response status: {response.status_code}")
-            print(f"Response headers: {response.headers}")
-            print(f"Response text: '{response.text}'")
-            print(f"Response json(): {response.json()}")
-            print(f"Type: {type(response.json())}")
-
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
-        await session_service.cleanup()
+        await service.cleanup()
+        print("Session cleanup complete")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

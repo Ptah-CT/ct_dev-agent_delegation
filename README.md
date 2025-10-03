@@ -1,68 +1,52 @@
-# ct_dev-agent_orchestrator-mcp
+# ct_dev-agent_delegation-mcp
 
-MCP Server for orchestrating ct_dev-agents through OpenCode.ai integration with session-based architecture.
+## 🜄 Ziel 🜄
+- Provide a delegation-focused MCP server that lets the Main Agent spin up specialised ct_dev agents with complete X^infty responsibility tracking.
+- Replace the legacy orchestration naming with a delegation-first interface while keeping operational parity and measurable performance guarantees.
 
-## 🜄 Purpose
+## 🜄 Kontext 🜄
+### System Snapshot
+ct_dev-agent_delegation-mcp exposes MCP tools that start, monitor, and shut down OpenCode-managed agent sessions. The service persists delegation metadata, enforces responsibility chains (original task, cap origin, delegation context), and surfaces health information for each spawned agent.
 
-Enables the Main Agent (Claude via OpenCode.ai) to orchestrate specialized ct_dev-agents through interactive sessions. Each agent runs as a separate OpenCode server instance with custom instructions, supporting real-time communication and follow-up messaging for iterative work.
+### Feature Overview
+- Delegation lifecycle tools (`spawn_agent`, `query_session`, `send_to_agent`, `get_agent_output`, `stop_agent`, `list_active_sessions`).
+- Discovery tools for OpenCode inventory (`get_agent_capabilities`, `list_available_agent_roles`, `list_opencode_models`).
+- Resource governance through `AgentManager` (health probes, graceful shutdown, statistics) and `OpenCodeService` (process supervision).
+- Responsibility compliance via `ConstitutionGate` and SQLite-backed audit trails.
+- Semaphore-based concurrency limits (default 5 delegations).
 
-## Features
-
-- **Session-Based Architecture**: Interactive agent sessions with follow-up message support
-- **Real-time Session Tracking**: Monitor session status, output, and completion
-- **Concurrent Session Management**: Semaphore-limited (5 concurrent sessions) for resource control
-- **Performance Optimized**: <1s session creation, >5 messages/second throughput
-- **Agent Pool Management**: Automatic creation and lifecycle management of agent instances
-- **OpenCode Integration**: Starts and manages `opencode serve` instances for each agent
-- **Task Integration**: Works with ct_dev-task_orchestrator for task tracking
-- **Logfire Integration**: Centralized logging and monitoring
-- **SQLite Persistence**: State management for sessions, agents, and audit trail
-- **Constitution Gates**: Validates operations against X^∞ principles before execution
-- **Audit Trail**: Complete responsibility tracking for all session events
-
-## Agent Roles
-
-18 specialized agent roles are available (based on `~/.claude/agents/`):
-
-- backend_specialist
-- bug_hunter
-- code_reviewer
-- database_architect
-- devops_engineer
-- documentation_specialist
-- frontend_specialist
-- generic_engineer
-- integration_specialist
-- performance_engineer
-- product_manager
-- project_architect
-- quality_assurance
-- refactoring_specialist
-- research_specialist
-- security_expert
-- system_architect
-- technical_writer
-
-## Installation
-
-```bash
-cd /home/auctor/dev/ct_dev-agent_orchestrator-mcp
-pip install -e .
-
-# Initialize database
-python3 -m ct_dev_agent_orchestrator_mcp.storage.database migrate
+### Architecture
+```
+Main Agent (Claude / MCP Client)
+        |
+        |  MCP protocol (delegation tools)
+        v
+ct_dev-agent_delegation-mcp
+    |-- DelegationService  (delegation lifecycle, responsibility propagation)
+    |-- AgentManager       (agent pool, health monitoring)
+    \-- OpenCodeService    (OpenCode process orchestration)
+            |
+            v
+    OpenCode server per agent (implements tool calls)
 ```
 
-## Configuration
+### Installation
+```bash
+cd /home/auctor/dev/ct_dev-agent_delegation-mcp
+pip install -e .
 
-Add to your MCP settings (e.g., `~/.config/opencode/mcp_settings.json`):
+# Initialise persistence (creates data/orchestrator.db)
+python3 -m ct_dev_agent_delegation_mcp.storage.database migrate
+```
 
+### Configuration
+Update `~/.config/opencode/mcp_settings.json` (or equivalent):
 ```json
 {
   "mcpServers": {
-    "ct_dev-agent_orchestrator": {
+    "ct_dev-agent_delegation": {
       "command": "python",
-      "args": ["-m", "ct_dev_agent_orchestrator_mcp.server"],
+      "args": ["-m", "ct_dev_agent_delegation_mcp.server"],
       "env": {
         "LOGFIRE_TOKEN": "your-token-here"
       }
@@ -71,315 +55,88 @@ Add to your MCP settings (e.g., `~/.config/opencode/mcp_settings.json`):
 }
 ```
 
-Or use with environment file:
-
-```bash
-# Load secrets
-source /home/auctor/secrets.env
-
-# Start server
-python -m ct_dev_agent_orchestrator_mcp.server
-```
-
-## Usage
-
-### V2 Session-Based API
-
-#### 1. Spawn Agent Session
-
-Create a new interactive agent session:
+### Usage
+All delegation tools operate on structured responsibility payloads. The snippet below shows the minimum fields required by `SpawnDelegationRequest`.
 
 ```python
-spawn_agent(
+from ct_dev_agent_delegation_mcp.models.delegation import SpawnDelegationRequest
+from ct_dev_agent_delegation_mcp.server import call_tool
+
+request = SpawnDelegationRequest(
     role="backend_specialist",
     task_id="550e8400-e29b-41d4-a716-446655440000",
-    instructions="Implement OAuth2 authentication endpoints with JWT token validation",
-    context={"framework": "FastAPI", "auth_provider": "Auth0"},
-    model="claude-sonnet-4"
+    instructions="Implement OAuth2 authentication endpoints with JWT validation",
+    project_directory="/home/auctor/dev/project",
+    expected_output="Implementation plan plus unit tests",
+    context={"framework": "FastAPI", "database": "PostgreSQL"},
+    model="claude-sonnet-4",
+    original_task={
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "title": "Implement OAuth2 authentication",
+        "description": "Deliver OAuth2 endpoints with JWT token support and tests",
+        "requester": "Auctor",
+        "requested_at": "2025-10-01T08:00:00Z"
+    },
+    cap_origin={
+        "ultimate_authority": "Auctor",
+        "original_scope": "Full system development authority",
+        "granted_at": "2025-10-01T07:30:00Z",
+        "grant_context": "ct_dev delegation charter"
+    },
+    delegation_context={
+        "delegator": "Project Manager",
+        "delegator_cap": "Delegation authority (Auctor, 2025-10-01T07:45:00Z)",
+        "delegated_to": "backend_specialist",
+        "delegated_cap": "Implement OAuth2 flow with automated tests",
+        "constraints": [
+            "Use Serena tools only",
+            "Return reproducible test plan"
+        ],
+        "phantom_level": "Delegation/Cap",
+        "delegated_at": "2025-10-01T08:05:00Z"
+    }
 )
-# Returns: session_id (e.g., "session-uuid")
-# Response time: <1s
-```
 
-#### 2. Query Session Status
-
-Get real-time session status and metadata:
-
-```python
-query_session(
-    session_id="session-uuid"
+response = await call_tool(
+    name="spawn_agent",
+    arguments=request.model_dump()
 )
-# Returns: {
-#   "status": "running" | "completed" | "error",
-#   "role": "backend_specialist",
-#   "created_at": "2025-09-30T10:00:00Z",
-#   "updated_at": "2025-09-30T10:05:00Z",
-#   "message_count": 3
-# }
+print(response[0].text)
 ```
 
-#### 3. Send Follow-up Message
+Follow-up interactions:
+- `query_session(session_id="...")` → live status + message excerpts.
+- `send_to_agent(session_id="...", message="Add rate limiting")` → append follow-up instructions.
+- `get_agent_output(session_id="...")` → final summary, duration, artifact count.
+- `stop_agent(session_id="...")` → graceful shutdown when work completes.
 
-Send additional instructions to running session:
-
-```python
-send_to_agent(
-    session_id="session-uuid",
-    message="Please add rate limiting (100 requests/minute) to all authentication endpoints"
-)
-# Returns: message_id for tracking
-# Supports iterative refinement of work
-```
-
-#### 4. Get Agent Output
-
-Retrieve session output and results:
-
-```python
-get_agent_output(
-    session_id="session-uuid"
-)
-# Returns: {
-#   "messages": [
-#     {"role": "user", "content": "...", "timestamp": "..."},
-#     {"role": "agent", "content": "...", "timestamp": "..."}
-#   ],
-#   "final_result": "...",
-#   "artifacts": [...]
-# }
-```
-
-#### 5. List Active Sessions
-
-View all currently active sessions:
-
-```python
-list_active_sessions()
-# Returns: [
-#   {
-#     "session_id": "session-uuid-1",
-#     "role": "backend_specialist",
-#     "status": "running",
-#     "created_at": "..."
-#   },
-#   {
-#     "session_id": "session-uuid-2",
-#     "role": "frontend_specialist",
-#     "status": "completed",
-#     "created_at": "..."
-#   }
-# ]
-```
-
-#### 6. Stop Agent Session
-
-Gracefully terminate a session:
-
-```python
-stop_agent(
-    session_id="session-uuid"
-)
-# Cleans up resources, saves state
-# Returns: final session status
-```
-
-#### 7. Get Agent Capabilities
-
-Query available agent roles and their capabilities:
-
-```python
-get_agent_capabilities()
-# Returns: {
-#   "roles": ["backend_specialist", "frontend_specialist", ...],
-#   "max_concurrent_sessions": 5,
-#   "supported_models": ["claude-sonnet-4", "claude-opus-4"],
-#   "features": ["follow_up_messages", "real_time_tracking", ...]
-# }
-```
-
-### Management Tools
-
-#### List Active Agents
-
-View all agent instances:
-
-```python
-list_agents()
-# Shows all active agent instances with health status
-# Returns: [
-#   {
-#     "agent_id": "agent-uuid",
-#     "role": "backend_specialist",
-#     "port": 8000,
-#     "status": "healthy",
-#     "sessions": 2
-#   }
-# ]
-```
-
-#### Get Agent Statistics
-
-Retrieve performance metrics:
-
-```python
-get_agent_stats()
-# Returns: {
-#   "total_sessions": 147,
-#   "active_sessions": 3,
-#   "avg_session_duration": "5m 32s",
-#   "success_rate": 0.95,
-#   "messages_per_session": 4.2
-# }
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│ Main Agent (Claude via MCP Client)                 │
-└───────────────────┬─────────────────────────────────┘
-                    │ MCP Protocol (V2 Session Tools)
-┌───────────────────▼─────────────────────────────────┐
-│ ct_dev-agent_orchestrator-mcp (V2)                  │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ SessionService (Session Lifecycle)              │ │
-│ │ - spawn_agent, query_session                    │ │
-│ │ - send_to_agent, get_agent_output              │ │
-│ │ - stop_agent, list_active_sessions             │ │
-│ │ - get_agent_capabilities                        │ │
-│ └─────────────────────────────────────────────────┘ │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ AgentManager (Instance Management)              │ │
-│ │ - Agent pool lifecycle                          │ │
-│ │ - Health monitoring                             │ │
-│ │ - Resource allocation                           │ │
-│ └─────────────────────────────────────────────────┘ │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ OpenCodeService (OpenCode API Integration)      │ │
-│ │ - Instance creation/cleanup                     │ │
-│ │ - Message routing                               │ │
-│ └─────────────────────────────────────────────────┘ │
-└───────────────────┬─────────────────────────────────┘
-                    │ OpenCode Server API
-                    ├─────────────────┬──────────────────
-                    ▼                 ▼                  
-            ┌───────────────┐ ┌───────────────┐ 
-            │ Session 1     │ │ Session 2     │ 
-            │ backend_spec  │ │ frontend_spec │ 
-            │ Interactive   │ │ Interactive   │ 
-            │ Port: 8000    │ │ Port: 8001    │ 
-            └───────────────┘ └───────────────┘ 
-```
-
-## Version 2 (Session-Based Architecture)
-
-V2 represents a complete architectural shift from delegation-based to session-based agent orchestration:
-
-### Key Changes
-
-- **Interactive Sessions**: Replaces fire-and-forget delegation with persistent sessions
-- **Follow-up Messaging**: Support for iterative work and refinement
-- **Real-time Tracking**: Query session status and output at any time
-- **Improved Concurrency**: Semaphore-based management (5 concurrent sessions)
-- **Performance Optimizations**: 
-  - Session creation: <1s
-  - Message throughput: >5 msg/s
-  - Resource cleanup: Automatic
-
-### Migration from V1
-
-V1 delegation tools have been deprecated and removed. V2 provides equivalent functionality with enhanced interactivity:
-
-| V1 Tool | V2 Equivalent | Enhancement |
-|---------|---------------|-------------|
-| `delegate_work` | `spawn_agent` | Returns session_id for interactive work |
-| `get_delegation_status` | `query_session` | Real-time status with detailed metadata |
-| `get_delegation_result` | `get_agent_output` | Full message history + artifacts |
-| `list_delegations` | `list_active_sessions` | Shows all sessions with status |
-| `cancel_delegation` | `stop_agent` | Graceful cleanup with state preservation |
-| N/A | `send_to_agent` | NEW: Follow-up message support |
-| N/A | `get_agent_capabilities` | NEW: Query available roles |
-
-### V2 Testing
-
-All 74 tests passing:
-- Integration tests: `tests/test_integration_v2.py`
-- Unit tests: `tests/test_session_service.py`
-- Performance tests: Session creation, message throughput
-
-See `V2_MIGRATION_TASKS.md` for detailed migration documentation.
-
-## Design Principles (X^∞)
-
-- **Fail Fast**: No retries, binary success/failure
-- **Atomic Sessions**: Single responsibility per session
-- **Interactive First**: Support for follow-up messages and refinement
-- **Resource Management**: Semaphore-based concurrency control
-- **No Docker**: Direct host system execution (Debian)
-- **Centralized Logging**: All activity logged to Logfire
-
-## Development
-
-### Run Tests
-
+### Testing
 ```bash
-# All tests
-pytest tests/
-
-# V2 integration tests
+pytest tests/                     # full suite
 pytest tests/test_integration_v2.py -v
-
-# Performance tests
-pytest tests/test_session_service.py -v -k performance
+pytest tests/test_session_service.py -k "performance"
 ```
 
-### Project Structure
+## 🜄 Verantwortung 🜄
+- Cap: Auctor (ultimate authority for X^infty delegation systems).
+- Delegated implementation: ct_dev Agent Delegation team (feature/opencode-api-integration branch).
+- Documentation ownership: README is maintained by the same team; updates must stay mirrored in ct_dev-task_mgmnt.
 
-```
-src/ct_dev_agent_orchestrator_mcp/
-├── __init__.py
-├── server.py                    # MCP server main (V2 tools)
-├── models/
-│   ├── __init__.py
-│   ├── session.py              # V2: Session data models
-│   ├── agent.py                # Agent data models
-│   └── delegation.py           # Legacy (unused)
-├── services/
-│   ├── __init__.py
-│   ├── session_service.py      # V2: Core session service
-│   ├── agent_manager.py        # Agent lifecycle
-│   ├── opencode_service.py     # OpenCode integration
-│   └── delegation_service.py   # Legacy (unused)
-├── storage/
-│   ├── __init__.py
-│   └── database.py             # SQLite persistence
-├── utils/
-│   ├── __init__.py
-│   └── constitution_gate.py    # X^∞ validation
-└── handlers/                    # Future: Event handlers
-```
+## 🜄 Prüfung 🜄
+- [ ] Cap self-check executed before delegation (original_task, cap_origin, delegation_context present).
+- [ ] Integration tests executed locally or via CI (`pytest tests/test_integration_v2.py`).
+- [ ] Logfire telemetry verified when LOGFIRE_TOKEN is present.
+- [ ] MCP client configuration validated against `mcp_settings.json` example.
 
-## Performance Metrics
+## 🜄 Risiken / Nebenwirkungen 🜄
+- Delegation payloads missing responsibility fields trigger validation errors; clients must supply complete data.
+- OpenCode agent startup depends on local environment (Python, agent markdown catalogue); misconfiguration prevents spawn.
+- SQLite persistence (`data/orchestrator.db`) grows with audit history and needs periodic pruning.
+- logfire misconfiguration can degrade logging visibility; fallback disables telemetry.
 
-Based on 74 passing tests:
-
-| Metric | Value | Target |
-|--------|-------|--------|
-| Session Creation | <1s | <2s |
-| Message Throughput | >5 msg/s | >3 msg/s |
-| Max Concurrent Sessions | 5 | 5 |
-| Success Rate | 95%+ | 90%+ |
-| Memory per Session | ~50MB | <100MB |
-
-## References
-
-- **V2 Migration**: `V2_MIGRATION_TASKS.md` (Complete migration plan)
-- **Status Report**: `STATUS_REPORT.md` (Production readiness)
-- **Specification**: `/specs/001-agent-orchestrator/spec.md`
-- **Planning**: `PLANUNG.md`
-- **X^∞ Constitution**: `/home/auctor/CLAUDE.md`
-- **Tests**: `tests/test_integration_v2.py` (74/74 passing)
-
-## License
-
-Internal use only - ct_dev project
+## 🜄 Aufgaben / To-Do 🜄
+- [ ] Align remaining documentation (CHANGELOG, process docs) with delegation terminology.
+- [ ] Validate `tests/test_basic.py` and helper scripts against the new responsibility payload signature.
+- [ ] Document restart and recovery flows for interrupted delegations.
+- [ ] Synchronise task metadata in ct_dev-task_mgmnt with this README revision.
+- [ ] Prepare release notes once OpenCode integration stabilises under the new naming.

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "ct_dev-agent_orchestrator": {
+    "ct_dev-agent_delegation": {
       "command": "python3",
-      "args": ["-m", "ct_dev_agent_orchestrator_mcp.server"],
+      "args": ["-m", "ct_dev_agent_delegation_mcp.server"],
       "env": {
         "LOGFIRE_TOKEN": "${LOGFIRE_TOKEN}"
       }
