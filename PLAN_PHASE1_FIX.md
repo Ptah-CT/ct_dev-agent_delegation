@@ -20,7 +20,7 @@ Abschluss der Phase 1 Fixes für OpenCode API-Integration durch:
 
 **Vorarbeiten**:
 - ✅ send_message() Endpoint Fix implementiert (POST /session/:id/message)
-- ✅ SessionInfo Model um scope_deviation Feld erweitert
+- ✅ DelegationInfo Model um scope_deviation Feld erweitert
 - ✅ ScopeDeviationDetector Klasse vollständig implementiert (utils/scope_deviation.py)
 - ⏳ Import-Fehler in session.py (Optional nicht importiert)
 - ⏳ Deviation Detection nicht integriert in Session-Lifecycle
@@ -53,7 +53,7 @@ Abschluss der Phase 1 Fixes für OpenCode API-Integration durch:
 ### Phase 1.1: Import-Fehler beheben (KRITISCH)
 **Verantwortlich**: Syntax Reviewer  
 **Geschätzte Zeit**: 5 Minuten  
-**Datei**: `src/ct_dev_agent_orchestrator_mcp/models/session.py`
+**Datei**: `src/ct_dev_agent_delegation_mcp/models/delegation.py`
 
 **Aufgabe**:
 - [ ] Import von `Optional` aus typing hinzufügen
@@ -65,7 +65,7 @@ Abschluss der Phase 1 Fixes für OpenCode API-Integration durch:
   ```python
   from typing import Dict, Any, List, Optional
   ```
-- [ ] Import testen: `python3 -c "from src.ct_dev_agent_orchestrator_mcp.models.session import SessionInfo"`
+- [ ] Import testen: `python3 -c "from src.ct_dev_agent_delegation_mcp.models.session import DelegationInfo"`
 - [ ] Verify: Kein NameError mehr
 
 **Erfolgs-Kriterium**: Import funktioniert ohne Fehler
@@ -76,8 +76,8 @@ Abschluss der Phase 1 Fixes für OpenCode API-Integration durch:
 **Verantwortlich**: Backend Specialist + System Integrator  
 **Geschätzte Zeit**: 30 Minuten  
 **Dateien**: 
-- `src/ct_dev_agent_orchestrator_mcp/services/session_service.py`
-- `src/ct_dev_agent_orchestrator_mcp/services/opencode_api_client.py`
+- `src/ct_dev_agent_delegation_mcp/services/delegation_service.py`
+- `src/ct_dev_agent_delegation_mcp/services/opencode_api_client.py`
 
 **Aufgabe 1.2.1**: Integration in opencode_api_client.py
 - [ ] Import ScopeDeviationDetector in opencode_api_client.py
@@ -111,17 +111,17 @@ if deviation:
             deviation=deviation
         )
 
-return deviation  # Wird in SessionInfo integriert
+return deviation  # Wird in DelegationInfo integriert
 ```
 
-**Aufgabe 1.2.2**: Integration in SessionInfo Update
+**Aufgabe 1.2.2**: Integration in DelegationInfo Update
 - [ ] In session_service.py: query_session() erweitern
 - [ ] Nach Message-Send: Deviation Check ausführen
-- [ ] SessionInfo.scope_deviation mit Detection-Result befüllen
+- [ ] DelegationInfo.scope_deviation mit Detection-Result befüllen
 - [ ] Bei CRITICAL/HIGH: Session Status auf CANCELLED setzen (Fail Fast)
 
 **Erfolgs-Kriterium**: 
-- Deviation wird erkannt und in SessionInfo zurückgegeben
+- Deviation wird erkannt und in DelegationInfo zurückgegeben
 - Logfire Warnings bei Detection
 - Critical Deviations führen zu Session-Abbruch
 
@@ -161,7 +161,7 @@ return deviation  # Wird in SessionInfo integriert
   - [ ] Assert: Session Status = CANCELLED
 
 **Aufgabe 1.3.3**: Validierungs-Tests
-- [ ] Test: SessionInfo Model mit scope_deviation Field
+- [ ] Test: DelegationInfo Model mit scope_deviation Field
   - [ ] Test JSON Serialization mit Deviation
   - [ ] Test JSON Serialization ohne Deviation (None)
 - [ ] Test: Import von session.py funktioniert
@@ -174,7 +174,7 @@ return deviation  # Wird in SessionInfo integriert
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from ct_dev_agent_delegation_mcp.utils.scope_deviation import ScopeDeviationDetector
-from ct_dev_agent_delegation_mcp.models.session import SessionInfo
+from ct_dev_agent_delegation_mcp.models.session import DelegationInfo
 from ct_dev_agent_delegation_mcp.services.opencode_api_client import OpenCodeAPIClient
 
 
@@ -337,7 +337,7 @@ class TestOpenCodeAPIIntegration:
 ## 🜄 Erfolgs-Kriterien 🜄
 
 ### Technisch
-1. ✅ Import-Fehler behoben, SessionInfo importierbar
+1. ✅ Import-Fehler behoben, DelegationInfo importierbar
 2. ✅ Scope Deviation Detection funktionsfähig
 3. ✅ Tests vorhanden, alle grün, Coverage >80%
 4. ✅ Build erfolgreich, Server startet

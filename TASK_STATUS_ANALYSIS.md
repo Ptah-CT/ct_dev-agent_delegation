@@ -25,13 +25,13 @@ Systematische Analyse aller offenen Tasks zur Priorisierung und strukturierten U
 #### ✅ Task "OpenCode Phase 1" (6813741a...)
 **Status**: Fast fertig, nur Test-Fixes nötig
 - ✅ Import-Fehler BEREITS BEHOBEN (Optional importiert)
-- ✅ SessionInfo Model ERWEITERT (scope_deviation field)
+- ✅ DelegationInfo Model ERWEITERT (scope_deviation field)
 - ✅ ScopeDeviationDetector VOLLSTÄNDIG IMPLEMENTIERT
-- ✅ Deviation Detection INTEGRIERT in session_service.py
+- ✅ Deviation Detection INTEGRIERT in delegation_service.py
 - ❌ **BLOCKER**: 3 Test-Dateien haben falsche Import-Pfade
   - `tests/test_integration_v2.py`
   - `tests/test_process_manager.py`
-  - `tests/test_session_service.py`
+  - `tests/test_delegation_service.py`
   - **Problem**: `from src.ct_dev_...` statt direktem Import
 
 **Aufwand**: 15-30 Minuten (nur Test-Imports fixen)
@@ -47,18 +47,18 @@ Systematische Analyse aller offenen Tasks zur Priorisierung und strukturierten U
 #### Ist-Zustand
 - ✅ Alle Code-Änderungen bereits umgesetzt
 - ✅ ScopeDeviationDetector vollständig (utils/scope_deviation.py)
-- ✅ SessionInfo erweitert mit scope_deviation (models/session.py)
-- ✅ Integration in session_service.py (Zeile 185)
+- ✅ DelegationInfo erweitert mit scope_deviation (models/delegation.py)
+- ✅ Integration in delegation_service.py (Zeile 185)
 - ❌ Tests schlagen fehl wegen falschen Imports
 
 #### Noch zu tun
 - [ ] **Test-Imports fixen** (3 Dateien):
   ```python
   # FALSCH:
-  from src.ct_dev_agent_orchestrator_mcp.services.session_service import SessionService
+  from src.ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
   
   # RICHTIG:
-  from ct_dev_agent_delegation_mcp.services.session_service import SessionService
+  from ct_dev_agent_delegation_mcp.services.delegation_service import DelegationService
   ```
 - [ ] Tests ausführen: `pytest tests/ -v`
 - [ ] Coverage prüfen: `pytest tests/ --cov`
@@ -93,7 +93,7 @@ Systematische Analyse aller offenen Tasks zur Priorisierung und strukturierten U
 **TASK ZURÜCKSTELLEN** bis Klärung:
 - Ist dies der richtige Task für dieses Projekt?
 - Falls ja: Welche Python-Dateien sind gemeint?
-- session_service.py? session_manager.py?
+- delegation_service.py? session_manager.py?
 
 ---
 
