@@ -65,6 +65,11 @@ class ProcessConfig:
     capture_output: bool = True
     working_directory: Optional[Path] = None
     environment: Optional[Dict[str, str]] = None
+    
+    # Callbacks (set BEFORE process starts to avoid race conditions)
+    on_output: Optional[callable] = None  # Called for each stdout line
+    on_error: Optional[callable] = None   # Called for each stderr line
+    on_exit: Optional[callable] = None    # Called when process exits
 
 
 @dataclass
@@ -96,10 +101,19 @@ class ManagedProcess:
     stderr_lines: List[str] = field(default_factory=list)
     max_output_lines: int = 1000
     
-    # Callbacks
+    # Callbacks (initialized from config to avoid race conditions)
     on_output: Optional[Callable[[str], None]] = None
     on_error: Optional[Callable[[str], None]] = None
     on_exit: Optional[Callable[[int], None]] = None
+    
+    def __post_init__(self):
+        """Initialize callbacks from config."""
+        if self.config.on_output:
+            self.on_output = self.config.on_output
+        if self.config.on_error:
+            self.on_error = self.config.on_error
+        if self.config.on_exit:
+            self.on_exit = self.config.on_exit
 
 
 class ProcessManager:

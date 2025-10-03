@@ -31,6 +31,8 @@ class OpenCodeSessionManager:
     async def create_session(
         self,
         server_url: str,
+        agent: Optional[str] = None,
+        model: Optional[str] = None,
         title: Optional[str] = None,
         directory: Optional[str] = None,
         parent_id: Optional[str] = None,
@@ -39,10 +41,12 @@ class OpenCodeSessionManager:
         """Create new agent session via OpenCode API.
         
         NOTE: OpenCode 0.13.5+ uses session-based architecture.
-        Agent and model are specified PER MESSAGE, not at session creation.
+        Agent and model can be specified at session creation.
         
         Args:
             server_url: OpenCode server URL
+            agent: Agent name to use (fetched from /agent API)
+            model: Model ID in format "provider/model" (e.g., "anthropic/claude-sonnet-4")
             title: Session title
             directory: Working directory
             parent_id: Parent session ID for nested sessions
@@ -64,6 +68,10 @@ class OpenCodeSessionManager:
                 payload["title"] = title
             if parent_id:
                 payload["parentID"] = parent_id
+            if agent:
+                payload["agent"] = agent
+            if model:
+                payload["model"] = model
                 
             # Query parameter for directory
             params = {}
@@ -469,4 +477,178 @@ class OpenCodeSessionManager:
                     error=str(e)
                 )
         
+    
+    async def get_message(
+        self, 
+        session_id: str, 
+        message_id: str
+    ) -> Dict[str, Any]:
+        """Get a specific message from a session.
+        
+        Args:
+            session_id: Session ID
+            message_id: Message ID
+            
+        Returns:
+            Message dict with structure:
+            {
+                "info": {...},
+                "parts": [...]
+            }
+        """
+        server_url = self._server_mapping.get(session_id)
+        if not server_url:
+            raise ValueError(f"Unknown session: {session_id}")
+        
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{server_url}/session/{session_id}/message/{message_id}"
+                )
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            logfire.error(
+                "Failed to get message",
+                session_id=session_id,
+                message_id=message_id,
+                error=str(e)
+            )
+            raise
+    
+    async def get_config(self, server_url: str) -> Dict[str, Any]:
+        """Get OpenCode configuration.
+        
+        Args:
+            server_url: OpenCode server URL
+            
+        Returns:
+            Config dict with theme, model, agent configs, etc.
+        """
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(f"{server_url}/config")
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            logfire.error(
+                "Failed to get config",
+                server_url=server_url,
+                error=str(e)
+            )
+            raise
+    
+    async def update_config(
+        self, 
+        server_url: str, 
+        config_update: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update OpenCode configuration.
+        
+        Args:
+            server_url: OpenCode server URL
+            config_update: Config changes to apply
+            
+        Returns:
+            Updated config dict
+        """
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.patch(
+                    f"{server_url}/config",
+                    json=config_update
+                )
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            logfire.error(
+                "Failed to update config",
+                server_url=server_url,
+                error=str(e)
+            )
+            raise
+    
+    async def list_commands(self, server_url: str) -> List[Dict[str, Any]]:
+        """Get available commands.
+        
+        Args:
+            server_url: OpenCode server URL
+            
+        Returns:
+            List of command dicts
+        """
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(f"{server_url}/command")
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            logfire.error(
+                "Failed to list commands",
+                server_url=server_url,
+                error=str(e)
+            )
+            raise
+    
+    async def execute_command(
+        self,
+        session_id: str,
+        command: str,
+        arguments: str,
+        agent: Optional[str] = None,
+        model: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute a command in a session.
+        
+        Args:
+            session_id: Session ID
+            command: Command name
+            arguments: Command arguments
+            agent: Optional agent name
+            model: Optional model ID
+            
+        Returns:
+            Command execution result
+        """
+        server_url = self._server_mapping.get(session_id)
+        if not server_url:
+            raise ValueError(f"Unknown session: {session_id}")
+        
+        try:
+            payload: Dict[str, Any] = {
+                "command": command,
+                "arguments": arguments
+            }
+            
+            if agent:
+                payload["agent"] = agent
+            if model:
+                payload["model"] = model
+            
+            import httpx
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{server_url}/session/{session_id}/command",
+                    json=payload
+                )
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            logfire.error(
+                "Failed to execute command",
+                session_id=session_id,
+                command=command,
+                error=str(e)
+            )
+            raise
+
         logfire.info("Cleaned up all sessions")

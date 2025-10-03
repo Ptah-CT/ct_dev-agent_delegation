@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### Added - Phase 3: OpenCode Integration Service Layer & MCP Tools
+- **OpenCode Dynamic Agent/Model Discovery**: New MCP tools for runtime agent and model discovery
+  - `list_opencode_agents`: Lists all available OpenCode agents with configurations
+  - `list_opencode_models`: Lists all available models grouped by provider
+  - Force refresh parameter support for cache invalidation
+  - Automatic caching with OpenCodeClient integration
+- **Enhanced Session Manager**: Extended OpenCodeSessionManager with Phase 3 features
+  - `create_session` now accepts optional `agent` and `model` parameters for dynamic agent/model selection
+  - `get_config()`: Retrieve current OpenCode server configuration
+  - `update_config()`: Update OpenCode configuration at runtime
+  - `list_commands()`: List available slash commands
+  - `execute_command()`: Execute slash commands within sessions
+- **OpenCodeClient**: New centralized client for OpenCode API integration
+  - Dataclasses for OpenCodeAgent and OpenCodeModel with full type safety
+  - Caching layer for agents and providers lists
+  - Complete async/await pattern implementation
+  - Integration with ProcessManager for lifecycle management
+- **Dynamic Agent Role System**: Removed AgentRole enum restriction
+  - spawn_agent now accepts any string role from OpenCode agent discovery
+  - Enables runtime agent discovery and dynamic role assignment
+  - Full backward compatibility maintained
+- **Comprehensive Test Coverage**: 20 new Phase 3 tests (100% passing)
+  - 10 tests for OpenCodeSessionManager Phase 3 features
+  - 10 tests for new MCP tools (list_opencode_agents, list_opencode_models)
+  - Integration tests with proper async mocking patterns
+  - Complete coverage of error handling and edge cases
+
+### Changed - Phase 3
+- OpenCode service layer refactored to use centralized OpenCodeClient
+- MCP server tool handlers updated with Phase 3 tool implementations
+- spawn_agent role parameter type changed from enum to string for dynamic roles
+- Session manager architecture enhanced with config management capabilities
+
+### Fixed - Phase 3
+- Test suite patching strategy corrected for opencode_service chain
+- Parameter naming consistency (arguments vs args) in execute_command tests
+
+### Documentation - Phase 3
+- AKTIONSPLAN_PHASE3.md: Complete Phase 3 planning and implementation guide
+- Archived resolved issues: io-block-spawn-agent.md, zombie-process-management.md
+- Test documentation for all Phase 3 features
+
 ### Added - X^∞ Responsibility Tracking
 - **BREAKING CHANGE**: Cap & Delegation Responsibility Fields for Agent Spawning
   - `original_task` field: Tracks the original task that started the work (task_id, title, description, requester, requested_at)
